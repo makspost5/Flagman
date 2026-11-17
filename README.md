@@ -34,6 +34,10 @@ Then ask Claude:
 Claude creates `taskgraph.js` in the task folder and opens the page. From then on every
 session updates its own items with the `fm` command, and the page refreshes by itself.
 
+To run a task with several parallel sessions from plan to finish, follow the
+[workflow guide](docs/workflow.md): the architect session, the worker prompts, answering
+questions, finishing.
+
 > Requirements: Python 3.9+ (standard library only), bash (Git Bash on Windows), a browser.
 > Tested on Windows, macOS and Linux.
 
