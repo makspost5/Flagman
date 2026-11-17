@@ -617,6 +617,26 @@ class CmdLauncherTests(CliTestCase):
         self.assertEqual(r.returncode, 1)
         self.assertIn("unknown item", r.stderr.decode("utf-8"))
 
+    def _stub_env(self):
+        """PATH with only a `python` that fails the version check (like the Store alias)."""
+        import os
+        fake = self.tmp / "stubbin"
+        fake.mkdir()
+        sysdir = Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32"
+        # an .exe, not a .cmd: a batch file calling another .cmd without `call` never returns
+        shutil.copyfile(sysdir / "where.exe", fake / "python.exe")
+        return dict(os.environ, PATH=str(fake) + os.pathsep + str(sysdir))
+
+    def test_cmd_launcher_rejects_failing_python(self):
+        self.task()
+        r = subprocess.run([str(self.CMD), str(self.folder), "show"], capture_output=True,
+                           env=self._stub_env())
+        self.assertEqual(r.returncode, 127, r.stdout)
+        err = r.stderr.decode("utf-8", "replace")
+        self.assertIn("Python 3.9+ not found", err)
+        self.assertIn("python.org", err)
+        self.assertEqual(r.stdout, b"")
+
     def test_cmd_launcher_is_crlf(self):
         data = self.CMD.read_bytes()
         self.assertEqual(data.count(b"\n"), data.count(b"\r\n"), self.CMD.name)
