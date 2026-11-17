@@ -56,3 +56,32 @@ jobs:
 
       - name: Tests
         run: python -m unittest discover -s tests -t . -v
+
+      # Smoke test: the plugin puts plugin/bin on PATH, so a session runs plain `fm`
+      # (bin/fm in bash, bin/fm.cmd in PowerShell). Run the demo the same way,
+      # then the "Try the demo" command from the README.
+      - name: Smoke test - fm from PATH (bash)
+        shell: bash
+        run: |
+          export PATH="$PWD/plugin/bin:$PATH"
+          command -v fm
+          fm --version
+          fm examples/demo check
+          fm examples/demo show
+          fm examples/demo open --no-browser
+          if fm examples/demo set nope status=doing; then echo "an error must exit non-zero"; exit 1; fi
+          bash plugin/bin/fm examples/demo open --no-browser
+          test -f examples/demo/taskgraph.html
+
+      - name: Smoke test - fm from PATH (PowerShell)
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          $env:PATH = "$PWD\plugin\bin;" + $env:PATH
+          (Get-Command fm).Source
+          fm --version; if ($LASTEXITCODE) { exit 1 }
+          fm examples/demo show; if ($LASTEXITCODE) { exit 1 }
+          fm examples/demo open --no-browser; if ($LASTEXITCODE) { exit 1 }
+          fm examples/demo set nope status=doing
+          if ($LASTEXITCODE -ne 1) { "an error must exit 1"; exit 1 }
+          exit 0
