@@ -14,7 +14,8 @@ with one of the templates. For a vulnerability, do not open an issue: see [SECUR
 | `plugin/skills/graph/` | The skill that tells a session how to use `fm` |
 | `plugin/page/taskgraph.html` | The page: one HTML file with inline CSS and JavaScript, no build step |
 | `tests/` | Tests for all of the above |
-| `examples/demo/` | The demo graph |
+| `examples/demo/` | The demo graph and `scenario.txt`, the steps the live demo replays |
+| `tools/demo_site.py`, `tools/demo_gif.py` | Build the live demo site and record `docs/demo.gif` |
 
 ## Run the tests
 
@@ -50,6 +51,17 @@ marketplace instead of the GitHub one:
 
 After a change, run `/plugin marketplace update flagman` and `/reload-plugins`. If you
 installed the GitHub version before, uninstall it first: both use the name `flagman`.
+
+## The live demo
+
+`python tools/demo_site.py` builds the site into `_site/`: the page as `index.html` and a
+`taskgraph.js` that replays `examples/demo/scenario.txt`. Each step runs its `fm` commands on a
+copy of `examples/demo/taskgraph.js`, so a scenario that no longer matches the CLI fails the
+build (and the tests). The `demo` workflow publishes `_site/` to GitHub Pages on every push to
+`main` that touches the page, the CLI, the demo or the tools.
+
+After changing the page or the scenario, record the README GIF again and commit it:
+`python tools/demo_gif.py` (needs Pillow and Edge or Chrome).
 
 ## Code style
 

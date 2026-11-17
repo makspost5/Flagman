@@ -1,0 +1,37 @@
+# The live demo replays these steps on top of examples/demo/taskgraph.js, one step every few
+# seconds, then starts again. A step is a "> caption" line and the fm commands under it.
+# tools/demo_site.py runs the commands with the real fm and records the graph after each step.
+
+> SHOP-1 at the start: P2 and C2 in progress, C1 waits on you
+> Session 01 opens a PR for checkout: P2 now waits on reviewers
+fm SHOP-1 next P2
+fm SHOP-1 next P2 status=review summary="PR #41 open"
+> You answer C1 in session 02: hosted search. The question is gone
+fm SHOP-1 start C1 summary="hosted search, as decided"
+> Catalog opens a PR for category pages
+fm SHOP-1 next C2 status=review summary="PR #42 open"
+> Checkout merged: Refunds (P3) are ready to start
+fm SHOP-1 done P2 summary="merged"
+> Session 01 starts refunds
+fm SHOP-1 start P3
+> Category pages merged: the load test (O2) is ready to start
+fm SHOP-1 done C2 summary="merged"
+> Ops starts the load test and asks you a question
+fm SHOP-1 start O2
+fm SHOP-1 ask O2 "Run the load test on staging or on a copy of production?"
+> The search index is written
+fm SHOP-1 next C1
+fm SHOP-1 next C1 summary="index built"
+> You answer O2: staging
+fm SHOP-1 start O2 summary="on staging, as decided"
+> Search index merged: Search UI (C3) starts
+fm SHOP-1 done C1 summary="merged"
+fm SHOP-1 start C3
+> Refunds and the load test are done
+fm SHOP-1 done P3 summary="merged"
+fm SHOP-1 done O2 summary="p95 under 300 ms"
+> Search UI merged: the release checklist (O3) starts
+fm SHOP-1 done C3 summary="merged"
+fm SHOP-1 start O3
+> All 9 items done
+fm SHOP-1 done O3 summary="released"

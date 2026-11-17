@@ -4,6 +4,7 @@
 </picture>
 
 [![tests](https://github.com/makspost5/Flagman/actions/workflows/tests.yml/badge.svg)](https://github.com/makspost5/Flagman/actions/workflows/tests.yml)
+**[Live demo](https://makspost5.github.io/Flagman/)**: the page in your browser, no install.
 
 <img src="docs/brand/mascot.png" width="240" align="right" alt="The Flagman mascot: a robot in a cap with a flag">
 
@@ -13,7 +14,7 @@ page: what is done, what waits on you, what can run in parallel, and where items
 
 The name: a flagman is the road worker with a flag who decides who goes now and who waits.
 
-![Flagman page](docs/screenshot.png)
+[![A task plays out on the Flagman page: items move through stages, a question waits on you, then everything is done](docs/demo.gif)](https://makspost5.github.io/Flagman/)
 
 ## Quick start
 
@@ -57,7 +58,11 @@ questions, finishing.
 
 ## Try the demo
 
-No install needed, only a clone:
+Open the [live demo](https://makspost5.github.io/Flagman/): the demo task `SHOP-1` plays out by
+itself, step by step, as in the [workflow guide](docs/workflow.md). Click an item to see its
+details; add `?step=8` to the address to stay on one step.
+
+Or run it locally, only a clone needed:
 
 ```bash
 git clone https://github.com/makspost5/Flagman.git

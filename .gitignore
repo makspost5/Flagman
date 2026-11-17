@@ -3,3 +3,5 @@ __pycache__/
 examples/demo/taskgraph.html
 .claude/
 *.log
+_site/
+_site/
