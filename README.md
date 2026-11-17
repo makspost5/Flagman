@@ -34,6 +34,10 @@ Then ask Claude:
 Claude creates `taskgraph.js` in the task folder and opens the page. From then on every
 session updates its own items with the `fm` command, and the page refreshes by itself.
 
+To run a task with several parallel sessions from plan to finish, follow the
+[workflow guide](docs/workflow.md): the architect session, the worker prompts, answering
+questions, finishing.
+
 > Requirements: Python 3.9+ (standard library only), bash (Git Bash on Windows), a browser.
 > Tested on Windows, macOS and Linux.
 
@@ -234,31 +238,11 @@ Graphs outlive plugin updates. Within 1.x:
 Not covered: the page's HTML, CSS and layout, the wording of the hook reminder and of `fm show`
 output, and anything under `plugin/scripts/` used directly rather than through `fm`.
 
-## Development
+## Contributing
 
-Run the tests:
-
-```
-py -3 -m unittest discover -s tests -t . -v
-```
-
-The page tests use headless Edge or Chrome (set `TASKGRAPH_BROWSER` to pick one) and are
-skipped when no browser is found; with `TASKGRAPH_REQUIRE_BROWSER=1`, as in CI, a missing
-browser is a failure. CI runs the tests on Windows, macOS and Ubuntu with Python 3.9 and 3.13.
-
-<details>
-<summary>Notes for maintainers on Windows</summary>
-
-- A commit made on Windows stores `plugin/bin/fm` and `plugin/scripts/hook` without the
-  executable bit. After `git add`, run
-  `git update-index --chmod=+x plugin/bin/fm plugin/scripts/hook`.
-- On macOS and Linux the reminder runs `bash "<plugin>/bin/fm" ...` and the hook starts through
-  `bash`, so the bit does not matter there.
-- On Windows the reminder says plain `fm`: the Bash tool runs `bin/fm`, the PowerShell tool runs
-  `bin/fm.cmd` (PowerShell cannot run an extensionless file, and `bash` in PowerShell is WSL).
-  Keep `bin/fm.cmd` with CRLF line endings (`.gitattributes` does this).
-
-</details>
+Run the tests with `python -m unittest discover -s tests -t . -v`. How to try the plugin from
+a local checkout, the code style and the Windows notes are in [CONTRIBUTING.md](CONTRIBUTING.md).
+Report vulnerabilities privately: see [SECURITY.md](SECURITY.md).
 
 ## Brand
 
