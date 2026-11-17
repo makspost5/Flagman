@@ -284,6 +284,73 @@ class PageTests(unittest.TestCase):
         for label in ("bad-task-link", "bad-item-link", "data-link", "vbscript:msgbox(5)"):
             self.assertIn(label, dom.text)
 
+    def test_page_wait_count_in_tab_title_and_favicon(self):
+        # make_graph has one item waiting on the user (2).
+        dom = self._open_graph(make_graph(), "?lang=en")
+        self.assertIn("(1) Task map K-1 · Flagman", dom.text)
+        self.assertIn("%3Ccircle", dom.first("link", rel="icon")["href"])
+        self.assertEqual(dom.err_text(), "")
+
+        g = make_graph()
+        g["items"][2]["status"] = "wait-me"
+        self.assertIn("(2) Task map K-1 · Flagman", self._open_graph(g, "?lang=en").text)
+
+        g["items"][1]["status"] = "doing"
+        g["items"][2]["status"] = "doing"
+        quiet = self._open_graph(g, "?lang=en")
+        self.assertNotIn("(", quiet.text.split("Flagman")[0])
+        self.assertIn("Task map K-1 · Flagman", quiet.text)
+        self.assertNotIn("%3Ccircle", quiet.first("link", rel="icon")["href"])
+
+    def test_page_wait_count_follows_reload(self):
+        first = make_graph()
+        first["task"]["rev"] = 1
+        later = make_graph()
+        later["task"]["rev"] = 2
+        later["items"][2]["status"] = "wait-me"
+        dom = self._open(_fixture_reload(first, json.dumps(later, ensure_ascii=False)),
+                         "?poll=500&lang=en", budget_ms=4000)
+        self.assertEqual(dom.first("body").get("data-rev"), "2")
+        self.assertIn("(2) Task map K-1 · Flagman", dom.text)
+
+    # A stand-in for the browser's Notification that records the last one in body[data-note],
+    # and a page that is not focused, as in a background tab.
+    FAKE_NOTIFY = ("window.Notification = function (t, o) {"
+                   " document.body.setAttribute('data-note', t + '|' + o.body); };\n"
+                   "window.Notification.permission = 'granted';\n"
+                   "window.Notification.requestPermission = function () {"
+                   " return Promise.resolve('granted'); };\n"
+                   "document.hasFocus = function () { return false; };\n")
+
+    def _open_notify(self, enabled: bool) -> _Dom:
+        first = make_graph()
+        first["task"]["rev"] = 1
+        later = make_graph()
+        later["task"]["rev"] = 2
+        later["items"][2]["status"] = "wait-me"
+        later["items"][2]["wait"] = "pick a name"
+        pref = "localStorage.setItem('fm-notify', '%s');\n" % ("1" if enabled else "0")
+        data_js = (self.FAKE_NOTIFY + pref
+                   + _fixture_reload(first, json.dumps(later, ensure_ascii=False)))
+        return self._open(data_js, "?poll=500&lang=en", budget_ms=4000)
+
+    def test_page_notifies_when_an_item_newly_waits(self):
+        dom = self._open_notify(True)
+        self.assertEqual(dom.err_text(), "")
+        self.assertEqual(dom.first("body").get("data-rev"), "2")
+        # Only item 3 is new: item 2 already waited at the first render, which never notifies.
+        self.assertEqual(dom.first("body").get("data-note"),
+                         "Waiting on you · K-1 · Flagman|3 · Item 3 — pick a name")
+        self.assertIn("on", _classes(dom.first("button", id="notify")))
+
+    def test_page_notifications_off_by_default(self):
+        dom = self._open_notify(False)
+        self.assertEqual(dom.first("body").get("data-rev"), "2")
+        self.assertIsNone(dom.first("body").get("data-note"))
+        button = dom.first("button", id="notify")
+        self.assertNotIn("on", _classes(button))
+        self.assertNotIn("hidden", button)
+
     def test_page_empty_graph(self):
         dom = self._open_graph(model.new_graph("K", "T"))
         self.assertEqual(dom.nodes(), {})
