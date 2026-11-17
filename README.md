@@ -42,7 +42,8 @@ session updates its own items with the `fm` command, and the page refreshes by i
 - **A graph and a list** of the task items, laid out left-to-right or top-to-bottom, RU/EN.
 - **Stages and statuses** for every item. Stages: plan, code, review, PR, merged, done.
   Statuses: `todo`, `doing`, `wait-me`, `review`, `done`.
-- **"Waits on you"** — items with `wait-me` and the exact question for you.
+- **"Waits on you"** — items with `wait-me` and the exact question for you. The count shows
+  in the tab title and on the favicon, so a background tab tells you too.
 - **Parallel work** — what is ready to start now and what is blocked, and by what.
 - **Conflicts** — pairs of items that touch the same thing.
 - **A reminder hook** — when a session edits its `plan.md` or `status.md`, Claude is reminded
@@ -148,6 +149,11 @@ run `bash <plugin>/bin/fm`, or `<plugin>\bin\fm.cmd` on Windows.
 `fm open` writes `taskgraph.html` next to `taskgraph.js` and opens it from `file://`. The page
 re-reads the data every few seconds, so it follows `fm` updates. Query parameters:
 `?lang=ru|en`, `?dir=lr|tb`, `?tab=graph|list`, `?poll=MS` (refresh interval, at least 200).
+
+While items wait on you, the tab title starts with their count, `(2) Task map SHOP-1 · Flagman`,
+and the favicon gets a red badge. The **Notifications** button (off by default, remembered in the
+browser) also shows a browser notification when an item starts waiting on you while the page is
+not focused.
 
 </details>
 

@@ -69,6 +69,7 @@ h1 { font-size: 16px; margin: 0; }
 .tabs button.on { background: var(--text); color: var(--bg); border-color: var(--text); }
 .tabs .sep { flex: 1; }
 .tabs button[hidden] { display: none; }
+#notify { margin-left: 10px; }
 .tabs .langs { display: flex; gap: 3px; align-items: center; margin-left: 10px; color: var(--muted); }
 .tabs .langs button { padding: 3px 7px; }
 .wrap > .main { flex: 1; min-height: 240px; display: grid; grid-template-columns: minmax(0, 1fr) 300px;
@@ -158,6 +159,7 @@ details.item .body { padding: 6px 0 10px; }
     <span class="sep"></span>
     <button data-dir="lr" data-t="dirLr" data-tt="dirLrTip"></button>
     <button data-dir="tb" data-t="dirTb" data-tt="dirTbTip"></button>
+    <button id="notify" data-t="notify" hidden></button>
     <span class="langs"><button data-lang="ru">RU</button>|<button data-lang="en">EN</button></span>
   </div>
   <div class="main">
@@ -218,7 +220,10 @@ details.item .body { padding: 6px 0 10px; }
       ask: "Что нужно от тебя:", dependsOn: "Зависит от",
       need: function (stage, part) { return "— нужно «" + stage + "»" + (part ? ", частично" : ""); },
       dependents: "От него зависят", conflicts: "Конфликты", details: "Подробности", links: "Ссылки и файлы",
-      waitsFor: "ждёт: "
+      waitsFor: "ждёт: ",
+      notify: "Уведомления", notifyTip: "Уведомлять, когда пункт начинает ждать тебя, а страница не в фокусе",
+      notifyDenied: "Браузер запретил уведомления для этой страницы: разреши их в настройках сайта",
+      notifyTitle: function (key) { return "Ждёт тебя · " + (key ? key + " · " : "") + "Flagman"; }
     },
     en: {
       title: "Task map",
@@ -256,7 +261,10 @@ details.item .body { padding: 6px 0 10px; }
       ask: "Needed from you:", dependsOn: "Depends on",
       need: function (stage, part) { return "— needs “" + stage + "”" + (part ? ", partly" : ""); },
       dependents: "Needed by", conflicts: "Conflicts", details: "Details", links: "Links and files",
-      waitsFor: "waits for: "
+      waitsFor: "waits for: ",
+      notify: "Notifications", notifyTip: "Notify me when an item starts waiting on me while the page is not focused",
+      notifyDenied: "The browser blocked notifications for this page: allow them in the site settings",
+      notifyTitle: function (key) { return "Waiting on you · " + (key ? key + " · " : "") + "Flagman"; }
     }
   };
   const ORDER = ["wait-me", "doing", "review", "ready", "blocked", "done"];
@@ -304,7 +312,62 @@ details.item .body { padding: 6px 0 10px; }
     document.querySelectorAll("[data-tt]").forEach(function (e) { e.title = tr[e.dataset.tt]; });
     document.querySelectorAll("[data-lang]").forEach(function (b) { b.classList.toggle("on", b.dataset.lang === lang); });
     document.title = tr.title + (G && G.task && G.task.key ? " " + G.task.key : "") + " · Flagman";
+    paintNotify();
   }
+
+  // "Waiting on you" outside the page: the count in the tab title, a badge on the favicon and, when the
+  // user turned them on, a browser notification for items that newly wait on the user.
+  const iconEl = document.querySelector('link[rel="icon"]');
+  const ICON = iconEl.getAttribute("href");
+  let waitSeen = null; // ids that waited on the user at the last render; null before the first one
+  function badgeIcon(n) {
+    if (!n) return ICON;
+    const label = n > 9 ? "9+" : String(n);
+    const svg = decodeURIComponent(ICON.slice(ICON.indexOf(",") + 1)).replace("</svg>",
+      '<circle cx="66" cy="34" r="34" fill="#dc343d" stroke="#fff" stroke-width="5"/>' +
+      '<text x="66" y="' + (label.length > 1 ? 47 : 51) + '" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-weight="700" font-size="' +
+      (label.length > 1 ? 36 : 48) + '" fill="#fff">' + label + "</text></svg>");
+    return "data:image/svg+xml," + encodeURIComponent(svg);
+  }
+  function attention() {
+    const waiting = G.items.filter(function (it) { return it.state === "wait-me"; });
+    const n = waiting.length;
+    if (n) document.title = "(" + n + ") " + document.title;
+    const href = badgeIcon(n);
+    if (iconEl.getAttribute("href") !== href) iconEl.setAttribute("href", href);
+    const fresh = waitSeen ? waiting.filter(function (it) { return !waitSeen[it.id]; }) : [];
+    waitSeen = {}; waiting.forEach(function (it) { waitSeen[it.id] = true; });
+    if (fresh.length && notifyOn() && !document.hasFocus()) notify(fresh);
+  }
+  function notifyOn() {
+    return store.get("fm-notify") === "1" && !!window.Notification && Notification.permission === "granted";
+  }
+  function notify(fresh) {
+    const T = G.task || {};
+    try {
+      const nt = new Notification(tr.notifyTitle(T.key), {
+        body: fresh.map(function (it) { return it.id + " · " + it.title + (it.wait ? " — " + it.wait : ""); }).join("\n"),
+        tag: "flagman-" + (T.key || "")
+      });
+      nt.onclick = function () { window.focus(); setTab("graph"); select(fresh[0].id); nt.close(); };
+    } catch (e) { }
+  }
+  function paintNotify() {
+    const b = $("notify");
+    if (!window.Notification) { b.hidden = true; return; }
+    b.hidden = false;
+    b.classList.toggle("on", notifyOn());
+    b.title = Notification.permission === "denied" ? tr.notifyDenied : tr.notifyTip;
+  }
+  $("notify").addEventListener("click", function () {
+    if (notifyOn()) { store.set("fm-notify", "0"); paintNotify(); return; }
+    const done = function (p) { store.set("fm-notify", p === "granted" ? "1" : "0"); paintNotify(); };
+    if (Notification.permission === "granted") { done("granted"); return; }
+    try {
+      const r = Notification.requestPermission(done); // the callback form for older browsers, the promise for new ones
+      if (r && r.then) r.then(done, function () { done("denied"); });
+    } catch (e) { done("denied"); }
+  });
 
   function depMet(d) {
     const t = byId[d.id]; if (!t) return false;
@@ -371,6 +434,7 @@ details.item .body { padding: 6px 0 10px; }
     $("err").textContent = "";
     applyStatic();
     buildModel();
+    attention();
     const listEl = $("list"), detailEl = $("detail");
     const keep = { list: listEl.scrollTop, detail: detailEl.scrollTop, open: {} };
     listEl.querySelectorAll("details.item[open]").forEach(function (d) { keep.open[d.dataset.item] = true; });
