@@ -209,7 +209,8 @@ data folder (`~/.flagman` if unset).
 
 `stage` is an index into `stages` (`-1` = not started); the last stage means done. `stages`
 must hold at least 2 unique, non-empty names. Ids are strings; `import` converts numeric ids
-to strings. Run `fm TASK check` after importing a hand-made file.
+to strings, stage names (in `items[].stage` and `deps[].stage`) to indexes, and gives a
+session without `state` the state `todo`. Run `fm TASK check` after importing a hand-made file.
 
 </details>
 

@@ -446,6 +446,45 @@ class IdAndStageTests(CliTestCase):
         code, out, err = run([arg, "set", "1", "status=doing"])
         self.assertEqual((code, err), (0, ""), out)
 
+    def test_import_accepts_stage_names(self):
+        arg = self.task()
+        new = {"version": 1, "lang": "en", "task": {"key": "K-1", "title": "T"},
+               "stages": ["plan", "code", "done"],
+               "items": [{"id": "A1", "title": "a", "stage": "Code", "status": "doing"},
+                         {"id": "A2", "title": "b", "stage": "-", "status": "todo",
+                          "deps": [{"id": "A1", "stage": "code"}]},
+                         {"id": "A3", "title": "c", "stage": "1", "status": "doing",
+                          "deps": [{"id": "A1", "stage": 2}, {"id": "A2"}]}]}
+        code, out, err = run([arg, "import", self.write(new)])
+        self.assertEqual((code, err), (0, ""), out)
+        items = self.graph()["items"]
+        self.assertEqual([i["stage"] for i in items], [1, -1, 1])
+        self.assertEqual(items[1]["deps"], [{"id": "A1", "stage": 1}])
+        self.assertEqual(items[2]["deps"], [{"id": "A1", "stage": 2}, {"id": "A2"}])
+
+    def test_import_rejects_unknown_stage_name(self):
+        arg = self.task()
+        before = self.raw()
+        new = model.new_graph("K-1", "T", "en")
+        new["items"] = [{"id": "A1", "title": "a", "stage": -1, "status": "todo"},
+                        {"id": "A2", "title": "b", "stage": -1, "status": "todo",
+                         "deps": [{"id": "A1", "stage": "deploy"}]}]
+        code, _, err = run([arg, "import", self.write(new)])
+        self.assertEqual(code, 1)
+        self.assertIn("unknown stage 'deploy'", err)
+        self.assertIn("plan, code", err)
+        self.assertEqual(self.raw(), before)
+
+    def test_import_defaults_session_state(self):
+        arg = self.task()
+        new = model.new_graph("K-1", "T", "en")
+        new["sessions"] = [{"id": "01", "name": "cli"}]
+        new["items"] = [{"id": "A1", "title": "a", "session": "01", "stage": -1,
+                         "status": "todo"}]
+        code, out, err = run([arg, "import", self.write(new)])
+        self.assertEqual((code, err), (0, ""), out)
+        self.assertEqual(self.graph()["sessions"][0]["state"], "todo")
+
 
 class RobustnessTests(CliTestCase):
     def test_hand_edited_file_gives_one_line_error(self):

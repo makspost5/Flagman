@@ -178,6 +178,7 @@ def _cmd_import(folder: Path, args: list[str]):
         graph.clear()
         graph.update(new)
         model.stringify_ids(graph)
+        model.normalize_import(graph)
         graph.setdefault("task", {})["rev"] = rev
         return "imported %d items" % len(graph.get("items") or [])
 
