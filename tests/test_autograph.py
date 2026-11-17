@@ -51,6 +51,17 @@ class CountTests(unittest.TestCase):
         self.assertEqual(autograph.count_items("- a\n```\n- b\n- c\n```\n- d\n"), 2)
         self.assertEqual(autograph.count_items("~~~\n### Task 1\n~~~\n- a\n"), 1)
 
+    def test_count_date_headings_do_not_hide_lists(self):
+        nl = chr(10)
+        text = "## 2026-11-17" + nl + "".join("- x" + nl for _ in range(7))
+        self.assertEqual(autograph.count_items(text), 7)
+
+    def test_count_step_headings_are_not_items(self):
+        nl = chr(10)
+        text = "".join("## Task %d" % i + nl + "#### Step 1" + nl + "#### Step 2" + nl
+                       for i in (1, 2))
+        self.assertEqual(autograph.count_items(text), 2)
+
     def test_count_crlf(self):
         self.assertEqual(autograph.count_items("- a\r\n- b\r\n"), 2)
 

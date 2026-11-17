@@ -109,11 +109,37 @@ def _bump_counter(state_dir: Path, sid: str) -> int:
     return n
 
 
+def _tasks_dir() -> str:
+    value = os.environ.get(TASKS_DIR_ENV, "").strip()
+    return "" if value.startswith("${user_config.") else value
+
+
 def _folder_hint(root: str) -> str:
-    tasks_dir = os.environ.get(TASKS_DIR_ENV, "").strip()
-    if not tasks_dir or tasks_dir.startswith("${user_config."):
-        tasks_dir = str(Path(root) / ".tasks")
-    return Path(tasks_dir).resolve().as_posix() + "/<KEY>"
+    return Path(_tasks_dir() or str(Path(root) / ".tasks")).resolve().as_posix() + "/<KEY>"
+
+
+def _nearby_graphs(root: str, limit: int = 5, max_up: int = 8) -> list[str]:
+    """Graphs in .tasks/* of root and its parents, and in tasks_dir/*: "KEY (path)"."""
+    places = [Path(_tasks_dir())] if _tasks_dir() else []
+    cur = Path(root).resolve()
+    for _ in range(max_up + 1):
+        places.append(cur / ".tasks")
+        if cur.parent == cur:
+            break
+        cur = cur.parent
+    found: list[str] = []
+    for place in places:
+        try:
+            folders = sorted(p for p in place.iterdir() if (p / store.FILE).is_file())
+        except OSError:
+            continue
+        for p in folders:
+            entry = "%s (%s)" % (p.name, p.resolve().as_posix())
+            if entry not in found:
+                found.append(entry)
+            if len(found) >= limit:
+                return found
+    return found
 
 
 def _auto_graph(payload: dict, state_dir: Path, fm_cmd: str, patterns: list[str],
@@ -151,7 +177,8 @@ def _auto_graph(payload: dict, state_dir: Path, fm_cmd: str, patterns: list[str]
         return None
     Path(state_dir).mkdir(parents=True, exist_ok=True)
     marker.write_text("", encoding="utf-8")
-    return autograph.reminder(auto, n, source, _folder_hint(cwd), fm_cmd)
+    return autograph.reminder(auto, n, source, _folder_hint(cwd), fm_cmd,
+                              _nearby_graphs(cwd))
 
 
 def handle_post_tool(payload: dict, state_dir: Path, fm_cmd: str,

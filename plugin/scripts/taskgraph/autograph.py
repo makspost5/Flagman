@@ -17,8 +17,8 @@ MAX_BYTES = 1_000_000  # a bigger "plan" is not read
 MODE_ENV = "CLAUDE_PLUGIN_OPTION_AUTO_GRAPH"
 MIN_ENV = "CLAUDE_PLUGIN_OPTION_AUTO_GRAPH_MIN"
 
-# "## 1. Title", "### Task 3: Title", "### Задача 2"
-_TASK_HEADING = re.compile(r"^#{2,4}\s+(?:(?:task|задача|step|шаг|этап)\s+)?\d+\b",
+# "## 1. Title", "### Task 3: Title", "### Задача 2"; not "## 2026-11-17", not steps
+_TASK_HEADING = re.compile(r"^#{2,4}\s+(?:(?:task|задача|этап)\s+)?\d+(?:[.:)]|\s|$)",
                            re.IGNORECASE)
 # a list item without indent: "- x", "* x", "+ x", "1. x", "2) x", "- [ ] x"
 _LIST_ITEM = re.compile(r"^(?:[-*+]|\d+[.)])\s+\S")
@@ -58,7 +58,7 @@ def is_plan_file(path: str, watch: list[str]) -> bool:
 
 
 def count_items(text: str) -> int:
-    """Task headings if the text has any, else list items without indent; code skipped."""
+    """Task headings if there are two or more, else list items without indent; code skipped."""
     headings = items = 0
     in_code = False
     for line in text.splitlines():
@@ -71,10 +71,11 @@ def count_items(text: str) -> int:
             headings += 1
         elif _LIST_ITEM.match(line):
             items += 1
-    return headings or items
+    return headings if headings >= 2 else items
 
 
-def reminder(mode: str, n: int, source: str, folder_hint: str, fm_cmd: str) -> str:
+def reminder(mode: str, n: int, source: str, folder_hint: str, fm_cmd: str,
+             nearby: list[str] | None = None) -> str:
     build = ("create the folder %s, then build the graph from the plan with %s import "
              "(or init and add)" % (folder_hint, fm_cmd))
     text = "This task is split into %d items (%s) and has no Flagman task graph yet. " % (n, source)
@@ -84,4 +85,7 @@ def reminder(mode: str, n: int, source: str, folder_hint: str, fm_cmd: str) -> s
     else:
         text += ("Ask the user in one line whether to keep a task graph for it. If yes, "
                  "use the flagman:graph skill: %s. " % build)
+    if nearby:
+        text += ("Graphs that already exist nearby: %s. If this task is one of them, use it "
+                 "instead of creating a new one. " % ", ".join(nearby))
     return text + "If the task already has a graph, ignore this."

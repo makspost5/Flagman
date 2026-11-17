@@ -602,6 +602,23 @@ class AutoGraphTests(HookCase):
                 "tool_input": {"todos": [{}] * 9}}
         self.assertIsNone(self.auto(todo))
 
+    def test_names_graphs_in_nearby_tasks_folders(self):
+        # self.tmp/.tasks/K-1 has a graph; a plan in self.tmp/repo should name it
+        text = self.edit(self.plan("plan.md", 6), mode="on")
+        self.assertIn("K-1", text)
+        self.assertIn(self.task.resolve().as_posix(), text)
+
+    def test_names_graphs_in_tasks_dir(self):
+        os.environ[hook.TASKS_DIR_ENV] = str(self.tmp / ".tasks")
+        other = self.tmp / "elsewhere"
+        other.mkdir()
+        path = other / "plan.md"
+        path.write_text("- x" + chr(10) * 1 + "- x" + chr(10) + "- x" + chr(10) + "- x" + chr(10)
+                        + "- x" + chr(10) + "- x" + chr(10), encoding="utf-8")
+        text = self.auto({"tool_name": "Write", "cwd": str(other),
+                          "tool_input": {"file_path": str(path)}})
+        self.assertIn("K-1", text)
+
     def test_unreadable_plan_silent(self):
         self.assertIsNone(self.edit(self.repo / "plan.md"))
 
