@@ -387,6 +387,19 @@ details.item .body { padding: 6px 0 10px; }
     const hard = (it.deps || []).filter(function (d) { return d.kind !== "part"; });
     return hard.every(depMet) ? "ready" : "blocked";
   }
+  // Same rule as session_states() in model.py: the session follows its items (by `session` or queue);
+  // a `state` stored by older versions is ignored.
+  function sessionStateOf(s) {
+    const mine = G.items.filter(function (it) { return it.session === s.id; }).map(function (it) { return it.id; });
+    (s.queue || []).forEach(function (id) { if (byId[id] && mine.indexOf(id) < 0) mine.push(id); });
+    const got = mine.map(function (id) { return byId[id].state; });
+    const has = function (x) { return got.indexOf(x) >= 0; };
+    if (has("wait-me")) return "wait-me";
+    if (has("doing")) return "doing";
+    if (got.length && got.every(function (x) { return x === "done"; })) return "done";
+    if (has("review")) return "review";
+    return "todo";
+  }
   function conflictsOf(id) { return (G.conflicts || []).filter(function (c) { return c.a === id || c.b === id; }); }
   function chip(id) { return '<span class="chip" data-go="' + esc(id) + '">' + esc(id) + "</span>"; }
   function stageName(n) { return n == null ? STAGES[LAST] : STAGES[n]; }
@@ -417,6 +430,7 @@ details.item .body { padding: 6px 0 10px; }
     sessById = {}; (G.sessions || []).forEach(function (s) { sessById[s.id] = s; });
     groupIdx = {}; (G.groups || []).forEach(function (g, i) { groupIdx[g.id] = i; });
     G.items.forEach(function (it) { it.state = stateOf(it); });
+    (G.sessions || []).forEach(function (s) { s.state = sessionStateOf(s); });
     dependents = {}; G.items.forEach(function (it) { (it.deps || []).forEach(function (d) { (dependents[d.id] = dependents[d.id] || []).push({ id: it.id, dep: d }); }); });
     counts = {}; ORDER.forEach(function (s) { counts[s] = 0; }); G.items.forEach(function (it) { counts[it.state]++; });
     // Graph layers by dependency depth
