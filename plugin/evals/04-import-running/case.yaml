@@ -1,0 +1,84 @@
+schema_version: "1.0"
+name: 04-import-running
+description: "A task already in progress gets a graph through fm import from its plan."
+tags: [architect,import]
+context:
+  scaffold_script: scaffold.sh
+execution:
+  max_turns: 25
+  timeout_seconds: 600
+  allowed_tools: [Skill, Bash, PowerShell, Read, Glob, Grep, Edit, Write]
+  prompt: |
+    This task is already running; its plan is in plan.md. Build a Flagman task graph for it
+    in .tasks/SHOP (the folder exists, there is no graph yet) and check it.
+runs: 3
+graders:
+  - name: written-by-fm
+    type: regex
+    target: {source: file, path: .tasks/SHOP/taskgraph.js}
+    pattern: '^// Task graph data\. Written by fm'
+    flags: m
+  - name: a1-done
+    type: regex
+    target: {source: file, path: .tasks/SHOP/taskgraph.js}
+    pattern: '"id": "A1",[^{]*?"status": "done"'
+  - name: a2-code-in-review
+    type: regex
+    target: {source: file, path: .tasks/SHOP/taskgraph.js}
+    pattern: '"id": "A2",[^{]*?"stage": 1,\s*"status": "review"'
+  - name: a3-not-started
+    type: regex
+    target: {source: file, path: .tasks/SHOP/taskgraph.js}
+    pattern: '"id": "A3",[^{]*?"stage": -1,\s*"status": "todo"'
+  - name: a2-needs-a1
+    type: regex
+    target: {source: file, path: .tasks/SHOP/taskgraph.js}
+    pattern: '"id": "A2",[^{]*?"deps": \[\s*\{\s*"id": "A1"'
+  - name: a3-needs-a2
+    type: regex
+    target: {source: file, path: .tasks/SHOP/taskgraph.js}
+    pattern: '"id": "A3",[^{]*?"deps": \[\s*\{\s*"id": "A2"'
+  - name: two-sessions
+    type: regex
+    target: {source: file, path: .tasks/SHOP/taskgraph.js}
+    pattern: '"sessions": \[[\s\S]*"id": "0?1"[\s\S]*"id": "0?2"'
+  - name: used-fm-import
+    type: regex
+    target: trace
+    pattern: '\bfm(\.cmd)?\W{0,3}\s+\W{0,2}\S*SHOP\S*\s+import\b'
+  - name: ran-fm-check
+    type: regex
+    target: trace
+    pattern: '\bfm(\.cmd)?\W{0,3}\s+\W{0,2}\S*SHOP\S*\s+check\b'
+  - name: check-passed
+    type: llm
+    focus: trace
+    criteria: |
+      - The agent ran `fm SHOP check` (or the same command with a path to the task folder) at least once.
+      - The output of the LAST such check command is `ok`, not a list of problems.
+  - name: no-edit-taskgraph
+    type: tool_used
+    tool: Edit
+    input_match: 'taskgraph\.js'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-write-taskgraph
+    type: tool_used
+    tool: Write
+    input_match: 'taskgraph\.js'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-shell-write-taskgraph
+    type: regex
+    target: trace
+    match: not_contains
+    pattern: '(\s>>?\s*|Set-Content\s+(-Path\s+)?|Out-File\s+(-FilePath\s+)?|Add-Content\s+(-Path\s+)?|sed\s+-i\S*\s.{0,80}?|\btee\s+(-a\s+)?)\W{0,2}[^\s"'']*taskgraph\.js'
+  - name: no-bash-in-powershell
+    type: tool_used
+    tool: PowerShell
+    input_match: '^\s*bash\s'
+    min: 0
+    max: 0
+    arm: both

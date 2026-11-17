@@ -1,0 +1,54 @@
+schema_version: "1.0"
+name: 03-ask-user
+description: "A worker needs a decision from the user; the skill records wait-me with the question."
+tags: [worker]
+context:
+  scaffold_script: scaffold.sh
+execution:
+  max_turns: 15
+  timeout_seconds: 300
+  allowed_tools: [Skill, Bash, PowerShell, Read, Glob, Grep, Edit, Write]
+  prompt: |
+    For A2 (Checkout) in the task SHOP I have to choose the payment provider before work can go on.
+    Record in the task graph that A2 is waiting on me for that.
+runs: 3
+graders:
+  - name: a2-wait-me
+    type: regex
+    target: {source: file, path: .tasks/SHOP/taskgraph.js}
+    pattern: '"id": "A2",[^{]*?"status": "wait-me",\s*"wait": "[^"]*payment'
+    flags: i
+  - name: others-untouched
+    type: regex
+    target: {source: file, path: .tasks/SHOP/taskgraph.js}
+    pattern: '"id": "A1",[^{]*?"stage": 0,\s*"status": "doing"'
+  - name: used-fm-ask-or-set
+    type: regex
+    target: trace
+    pattern: '\bfm(\.cmd)?\W{0,3}\s+\W{0,2}\S*SHOP\S*\s+(ask|set)\s+A2\b'
+  - name: no-edit-taskgraph
+    type: tool_used
+    tool: Edit
+    input_match: 'taskgraph\.js'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-write-taskgraph
+    type: tool_used
+    tool: Write
+    input_match: 'taskgraph\.js'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-shell-write-taskgraph
+    type: regex
+    target: trace
+    match: not_contains
+    pattern: '(\s>>?\s*|Set-Content\s+(-Path\s+)?|Out-File\s+(-FilePath\s+)?|Add-Content\s+(-Path\s+)?|sed\s+-i\S*\s.{0,80}?|\btee\s+(-a\s+)?)\W{0,2}[^\s"'']*taskgraph\.js'
+  - name: no-bash-in-powershell
+    type: tool_used
+    tool: PowerShell
+    input_match: '^\s*bash\s'
+    min: 0
+    max: 0
+    arm: both
