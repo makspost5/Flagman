@@ -5,19 +5,19 @@ All notable changes to Flagman are listed here. The format follows
 [Semantic Versioning](https://semver.org/): what stays stable within 1.x is under
 [Compatibility](README.md#compatibility) in the README.
 
-## [1.0.0] - Unreleased
+## [1.0.0] - 2026-11-17
 
 The first public release. Earlier builds were published as 0.2.0 without tags; this entry
 covers everything since then. Graphs made with 0.2.0 open in 1.0.0 without changes.
 
 ### Added
 
-- `start`, `next`, `done` and `ask` shortcut commands for the usual item moves (#10).
-- `fm --version` prints the plugin version (#17).
-- `lang` setting: the language of new graphs, `en` or `ru` (#4).
 - Auto graph: when a session splits a task into `auto_graph_min` (default 6) or more items in
   a plan file or its todo list and no graph exists, Claude offers one (`auto_graph=ask`, the
   default), creates it (`on`), or stays quiet (`off`) (#40).
+- `start`, `next`, `done` and `ask` shortcut commands for the usual item moves (#10).
+- `fm --version` prints the plugin version (#17).
+- `lang` setting: the language of new graphs, `en` or `ru` (#4).
 - `watch_files` setting: which files remind a session to update the graph, as names or
   globs; default `status.md,plan.md` (#5).
 - The page shows the number of items waiting on you in the tab title and on the favicon (#6).
@@ -50,9 +50,12 @@ covers everything since then. Graphs made with 0.2.0 open in 1.0.0 without chang
 
 - On Windows `fm.cmd` skips the Microsoft Store `python` alias and any Python older than
   3.9, and says where to get Python when none fits (#18).
+- The "Waiting on you" hint on the page uses the right plural ("in 1 session", RU forms for
+  21, 31, ...) and lists items without a session after "no session:" (#36).
 - The page copy in a task folder no longer goes stale after a plugin update: every `fm`
   change that writes the graph replaces a `taskgraph.html` that differs from the plugin's
   page. Before, it kept the old page until `fm open` ran again (#44).
+- On the page, a conflict hint goes away once either of its two items is done (#43).
 
 ## 0.2.0
 
