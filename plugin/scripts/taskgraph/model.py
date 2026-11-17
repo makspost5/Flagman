@@ -131,7 +131,10 @@ def validate(graph: dict) -> list[str]:
         if not _is_id(iid):
             continue
         stage = it.get("stage")
-        if not isinstance(stage, int) or isinstance(stage, bool) \
+        if isinstance(stage, str):
+            problems.append("item '%s': unknown stage '%s' (stages: %s)"
+                            % (iid, stage, ", ".join(stages)))
+        elif not isinstance(stage, int) or isinstance(stage, bool) \
                 or not -1 <= stage < len(stages):
             problems.append("item '%s': stage %r out of range (-1..%d)"
                             % (iid, stage, len(stages) - 1))
@@ -149,7 +152,10 @@ def validate(graph: dict) -> list[str]:
                 problems.append("item '%s': dependency on unknown item '%s'" % (iid, did))
             else:
                 dstage = d.get("stage")
-                if dstage is not None and (not isinstance(dstage, int)
+                if isinstance(dstage, str):
+                    problems.append("item '%s': dependency on '%s' has unknown stage '%s'"
+                                    " (stages: %s)" % (iid, did, dstage, ", ".join(stages)))
+                elif dstage is not None and (not isinstance(dstage, int)
                                            or not 0 <= dstage < len(stages)):
                     problems.append("item '%s': dependency on '%s' has stage %r out of range"
                                     % (iid, did, dstage))
@@ -201,6 +207,31 @@ def stringify_ids(graph: dict) -> None:
                 fix(d, "id")
     for c in rows("conflicts"):
         fix(c, "a", "b")
+
+
+def normalize_import(graph: dict) -> None:
+    """Fill in what imported JSON may leave out, in place: stage names in
+    items[].stage and deps[].stage become indexes, a missing session state
+    becomes 'todo'. Values that do not resolve are left for validate()."""
+    def stage(value):
+        if isinstance(value, str):
+            try:
+                return parse_stage(graph, value)
+            except GraphError:
+                pass
+        return value
+
+    for it in graph.get("items") or []:
+        if not isinstance(it, dict):
+            continue
+        if "stage" in it:
+            it["stage"] = stage(it["stage"])
+        for d in it.get("deps") or []:
+            if isinstance(d, dict) and d.get("stage") is not None:
+                d["stage"] = stage(d["stage"])
+    for s in graph.get("sessions") or []:
+        if isinstance(s, dict) and s.get("state") is None:
+            s["state"] = "todo"
 
 
 def parse_stage(graph: dict, value: str) -> int:
