@@ -420,6 +420,7 @@ class FilterTests(HookCase):
 
     def test_impl_plan_md_takes_fast_path(self):
         env = self.fake_env()
+        env[autograph.MODE_ENV] = "off"  # with auto graph on, a *plan*.md goes to Python
         for name in ("impl-plan.md", "my-status.md"):
             r = self.run_hook("post-tool", {"session_id": "f", "tool_input": {
                 "file_path": "/x/" + name}}, env)
@@ -485,6 +486,7 @@ class WatchFilesScriptTests(HookCase):
                    PATH=fake.as_posix() + os.pathsep + os.environ["PATH"])
         if watch is not None:
             env[hook.WATCH_ENV] = watch
+        env[autograph.MODE_ENV] = "off"  # only watch_files decides here
         r = subprocess.run([helpers.find_bash(), HOOK_SH.as_posix(), "post-tool"],
                            input=json.dumps({"session_id": sid,
                                              "tool_input": {"file_path": path}}).encode("utf-8"),
@@ -631,6 +633,66 @@ class AutoGraphTests(HookCase):
         data = json.loads((ROOT / "plugin" / "hooks" / "hooks.json").read_text(encoding="utf-8"))
         self.assertEqual(data["hooks"]["PostToolUse"][0]["matcher"],
                          "Edit|Write|MultiEdit|TodoWrite|TaskCreate")
+
+
+class AutoGraphScriptTests(FilterTests):
+    def started_for(self, payload, mode=None):
+        if not hasattr(self, "_env"):
+            self._env = self.fake_env()
+        env = dict(self._env)
+        if mode is not None:
+            env[autograph.MODE_ENV] = mode
+        r = self.run_hook("post-tool", dict(payload, session_id="g"), env)
+        self.assertEqual((r.returncode, r.stdout), (0, b""))
+        return self.started.exists()
+
+    def edit(self, path):
+        return {"tool_name": "Write", "tool_input": {"file_path": path}}
+
+    def test_prefilter_passes_plans_folder(self):
+        self.assertTrue(self.started_for(self.edit("/r/docs/superpowers/plans/2026-x.md")))
+
+    def test_prefilter_passes_plans_folder_windows(self):
+        bs = chr(92)
+        self.assertTrue(self.started_for(self.edit("C:" + bs + "r" + bs + "Plans" + bs + "x.md")))
+
+    def test_prefilter_passes_named_plan(self):
+        self.assertTrue(self.started_for(self.edit("/r/Release-Plan.MD")))
+
+    def test_prefilter_off_keeps_fast_path(self):
+        self.assertFalse(self.started_for(self.edit("/r/docs/plans/x.md"), mode="off"))
+
+    def test_prefilter_unsubstituted_setting_is_ask(self):
+        self.assertTrue(self.started_for(self.edit("/r/plans/x.md"),
+                                         mode="${user_config.auto_graph}"))
+
+    def test_prefilter_todo_tools(self):
+        for tool in ("TodoWrite", "TaskCreate"):
+            self.assertTrue(self.started_for({"tool_name": tool, "tool_input": {}}), tool)
+            self.started.unlink()
+            self.assertFalse(self.started_for({"tool_name": tool, "tool_input": {}}, "off"))
+
+    def test_prefilter_readme_fast_path(self):
+        self.assertFalse(self.started_for(self.edit("/r/README.md")))
+        self.assertFalse(self.started_for(self.edit("/r/plans.py")))
+        self.assertFalse(self.started_for(self.edit("/r/planning/README.md")))
+
+
+class AutoGraphEndToEndTests(HookCase):
+    def test_end_to_end_plan_reminds(self):
+        repo = self.tmp / "repo"
+        repo.mkdir()
+        plan = repo / "plan.md"
+        plan.write_text("".join("- step %d" % i + chr(10) for i in range(6)), encoding="utf-8")
+        payload = {"session_id": "e2e", "cwd": str(repo), "tool_name": "Write",
+                   "tool_input": {"file_path": str(plan)}}
+        env = dict(os.environ, CLAUDE_PLUGIN_DATA=str(self.state))
+        r = subprocess.run([helpers.find_bash(), HOOK_SH.as_posix(), "post-tool"],
+                           input=json.dumps(payload).encode("utf-8"), capture_output=True,
+                           env=env)
+        self.assertEqual(r.returncode, 0)
+        out = json.loads(r.stdout.decode("utf-8"))
+        self.assertIn("6 items", out["hookSpecificOutput"]["additionalContext"])
 
 
 if __name__ == "__main__":
