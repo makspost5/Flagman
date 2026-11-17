@@ -1,0 +1,49 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: ${{ matrix.os }} / Python ${{ matrix.python }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python: ["3.9", "3.13"]
+    env:
+      # page tests fail instead of being skipped when no browser is found
+      TASKGRAPH_REQUIRE_BROWSER: "1"
+      PYTHONUTF8: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+
+      # Ubuntu 24.04 blocks unprivileged user namespaces, which the Chrome sandbox needs.
+      - name: Allow the Chrome sandbox (Linux)
+        if: runner.os == 'Linux'
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
+
+      # Chrome is preinstalled on macOS runners but not on PATH.
+      - name: Point the page tests at Chrome (macOS)
+        if: runner.os == 'macOS'
+        run: echo "TASKGRAPH_BROWSER=/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" >> "$GITHUB_ENV"
+
+      - name: Versions
+        shell: bash
+        run: |
+          python --version
+          bash --version | head -1
+
+      - name: Tests
+        run: python -m unittest discover -s tests -t . -v

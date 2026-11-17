@@ -3,6 +3,8 @@
   <img src="docs/brand/banner-light.png" alt="Flagman. Run big tasks with ease. See everything at a glance.">
 </picture>
 
+[![tests](https://github.com/makspost5/Flagman/actions/workflows/tests.yml/badge.svg)](https://github.com/makspost5/Flagman/actions/workflows/tests.yml)
+
 <img src="docs/brand/mascot.png" width="240" align="right" alt="The Flagman mascot: a robot in a cap with a flag">
 
 **Flagman** is a Claude Code plugin for big tasks split into many items and run by several
