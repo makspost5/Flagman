@@ -250,7 +250,6 @@ class PageTests(unittest.TestCase):
     def test_page_review_status(self):
         g = make_graph()
         g["items"][2]["status"] = "review"
-        g["sessions"][0]["state"] = "review"
         dom = self._open_graph(g, "?lang=ru")
         self.assertIn("st-review", dom.nodes()["3"])
         self.assertIn("На ревью", dom.text)
@@ -260,6 +259,23 @@ class PageTests(unittest.TestCase):
         self.assertIn("In review", en.text)
         self.assertIn("waiting for review or merge", en.text)
         self.assertEqual(en.err_text(), "")
+
+    def _session_badges(self, dom: _Dom) -> list[str]:
+        start = next(i for i, (t, a) in enumerate(dom.tags) if a.get("id") == "sessions")
+        badges = [c for t, a in dom.tags[start + 1:] if t == "span" and "badge" in _classes(a)
+                  for c in _classes(a) if c.startswith("b-")]
+        return badges[:2]  # the two sessions of make_graph() come first
+
+    def test_page_session_state_follows_items(self):
+        g = make_graph()
+        g["sessions"][0]["state"] = "done"  # stale hand-set value is ignored
+        self.assertEqual(self._session_badges(self._open_graph(g)), ["b-todo", "b-wait-me"])
+        g["items"][2]["status"] = "doing"
+        g["items"][1]["status"] = "done"
+        self.assertEqual(self._session_badges(self._open_graph(g)), ["b-doing", "b-todo"])
+        g["items"][2]["status"] = "done"
+        g["items"][3]["status"] = "review"
+        self.assertEqual(self._session_badges(self._open_graph(g)), ["b-done", "b-review"])
 
     def test_page_stage_pipe_marks_reached_stages(self):
         # `stage` is the last stage reached: item 2 is at stage 1, so stages 0-1 are done

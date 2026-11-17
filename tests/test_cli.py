@@ -274,11 +274,11 @@ class EditTests(CliTestCase):
         self.assertEqual((code, err), (0, ""))
         s = next(x for x in self.graph()["sessions"] if x["id"] == "03")
         self.assertEqual(s["queue"], ["3", "4"])
-        self.assertEqual(s["state"], "todo")
-        code, _, err = run([arg, "session", "03", "state=doing", "note=hi"])
+        self.assertNotIn("state", s)
+        code, _, err = run([arg, "session", "03", "note=hi"])
         self.assertEqual((code, err), (0, ""))
         s = next(x for x in self.graph()["sessions"] if x["id"] == "03")
-        self.assertEqual((s["state"], s["note"], s["queue"]), ("doing", "hi", ["3", "4"]))
+        self.assertEqual((s["note"], s["queue"]), ("hi", ["3", "4"]))
         code, _, err = run([arg, "group", "H", "title=Hh", "estimate=2d"])
         self.assertEqual((code, err), (0, ""))
         g = next(x for x in self.graph()["groups"] if x["id"] == "H")
@@ -424,11 +424,42 @@ class IdAndStageTests(CliTestCase):
         self.assertIn("stages", err)
         self.assertEqual(self.raw(), before)
 
+    def test_session_state_is_not_set_by_hand(self):
+        arg = self.task()
+        before = self.raw()
+        code, _, err = run([arg, "session", "01", "state=doing"])
+        self.assertNotEqual(code, 0)
+        self.assertIn("computed from its items", err)
+        self.assertEqual(self.raw(), before)
+
+    def test_session_update_drops_stored_state(self):
+        g = make_graph()
+        g["sessions"][0]["state"] = "done"  # written by an older version
+        self.folder = make_task(self.tmp, g)
+        code, _, err = run([str(self.folder), "session", "01", "note=x"])
+        self.assertEqual((code, err), (0, ""))
+        self.assertNotIn("state", self.graph()["sessions"][0])
+
+    def test_show_lists_sessions_by_their_items(self):
+        arg = self.task()
+        code, out, _ = run([arg, "show"])
+        self.assertEqual(code, 0)
+        self.assertIn("sessions: 01-a todo, 02-x wait-me", out)
+        run([arg, "start", "3"])
+        _, out, _ = run([arg, "show"])
+        self.assertIn("sessions: 01-a doing, 02-x wait-me", out)
+
+    def test_import_without_session_state(self):
+        arg = self.task()
+        new = make_graph()
+        code, out, err = run([arg, "import", self.write(new)])
+        self.assertEqual((code, err), (0, ""), out)
+
     def test_import_converts_numeric_ids(self):
         arg = self.task()
         new = model.new_graph("K-1", "T", "en")
         new["groups"] = [{"id": 7, "title": "g"}]
-        new["sessions"] = [{"id": 1, "name": "n", "dir": "sessions/n", "state": "todo",
+        new["sessions"] = [{"id": 1, "name": "n", "dir": "sessions/n",
                             "note": "", "queue": [1, 2]}]
         item = {"title": "x", "group": 7, "session": 1, "stage": -1, "status": "todo",
                 "wait": "", "summary": "", "details": [], "links": [], "files": []}

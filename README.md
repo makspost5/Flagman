@@ -132,9 +132,9 @@ their `.tasks/` folders, and `--root`.
 | `rm ID` | remove an item (refused while something refers to it) |
 | `dep ID +DEP -DEPID [note=]` | add or remove dependencies; `DEP` is `ID[@STAGE][:part]` |
 | `group ID [title= estimate=]` | create or update a group |
-| `session ID [name= dir= state= note= queue=a,b]` | create or update a session |
+| `session ID [name= dir= note= queue=a,b]` | create or update a session; its state comes from its items |
 | `conflict A B WHY` / `conflict A B -` | mark or clear a conflict between two items |
-| `show` | short summary: done, waiting on you, in progress, ready, blocked |
+| `show` | short summary: done, waiting on you, in progress, ready, blocked, sessions |
 | `check` | validate the file (`ok` or a list of problems) |
 | `open [--no-browser]` | copy the page next to `taskgraph.js` and open it |
 | `--version` (or `version`, without `TASK`) | print the plugin version, `flagman X.Y.Z`; include it in bug reports |
@@ -200,14 +200,18 @@ data folder (`~/.flagman` if unset).
   "task": { "key", "title", "links": [{label, href}], "due", "updated", "rev" },
   "stages": ["plan", "code", ...],
   "groups": [{ "id", "title", "estimate" }],
-  "sessions": [{ "id", "name", "dir", "state", "note", "queue": [item ids] }],
+  "sessions": [{ "id", "name", "dir", "note", "queue": [item ids] }],
   "items": [{ "id", "title", "group", "session", "stage", "status", "wait",
               "deps": [{ "id", "stage"?, "kind"?, "note" }],
               "summary", "details", "links", "files" }],
   "conflicts": [{ "a", "b", "why" }] }
 ```
 
-`stage` is an index into `stages` (`-1` = not started); the last stage means done. `stages`
+`stage` is an index into `stages` (`-1` = not started); the last stage means done.
+A session has no stored state: `fm show` and the page derive it from the session's items
+(its `session` items and its `queue`): any waiting on you → `wait-me`, any in progress →
+`doing`, all done → `done`, any in review → `review`, otherwise `todo`. A `state` field
+written by older versions is ignored. `stages`
 must hold at least 2 unique, non-empty names. Ids are strings; `import` converts numeric ids
 to strings. Run `fm TASK check` after importing a hand-made file.
 

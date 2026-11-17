@@ -104,10 +104,6 @@ class ModelTests(unittest.TestCase):
             g["conflicts"] = [{"a": "1", "b": "1", "why": "x"}]
         self._one_problem(same_conflict, "1")
 
-        def bad_state(g):
-            g["sessions"][1]["state"] = "stuck"
-        self._one_problem(bad_state, "02")
-
         def bad_lang(g):
             g["lang"] = "de"
         self._one_problem(bad_lang, "de")
@@ -157,7 +153,6 @@ class ModelTests(unittest.TestCase):
         g = make_graph()
         g["items"][3]["status"] = "review"  # item 4 has an unmet dependency
         self.assertEqual(model.item_states(g)["4"], "review")
-        g["sessions"][0]["state"] = "review"
         self.assertEqual(model.validate(g), [])
         self.assertIn("in review: 4", model.summary_lines(g))
         g["items"][2]["status"] = "wip"
@@ -181,6 +176,37 @@ class ModelTests(unittest.TestCase):
             it["id"] = str(n)
             big["items"].append(it)
         self.assertLessEqual(len(model.summary_lines(big)), 15)
+
+    def test_session_states(self):
+        g = make_graph()
+        # 01: items 1 (done), 3 (ready); 02: items 2 (wait-me), 4 (blocked)
+        self.assertEqual(model.session_states(g), {"01": "todo", "02": "wait-me"})
+        g["items"][2]["status"] = "doing"
+        self.assertEqual(model.session_states(g)["01"], "doing")
+        g["items"][2]["status"] = "review"
+        self.assertEqual(model.session_states(g)["01"], "review")
+        g["items"][2]["status"] = "done"
+        self.assertEqual(model.session_states(g)["01"], "done")
+        g["items"][1]["status"] = "doing"  # 02: doing + blocked
+        self.assertEqual(model.session_states(g)["02"], "doing")
+        g["items"][1]["status"] = "done"   # 02: done + ready
+        self.assertEqual(model.session_states(g)["02"], "todo")
+
+    def test_session_state_ignores_stored_field(self):
+        g = make_graph()
+        g["sessions"][0]["state"] = "stuck"  # older files carry a hand-set value
+        self.assertEqual(model.validate(g), [])
+        self.assertEqual(model.session_states(g)["01"], "todo")
+
+    def test_session_state_counts_queue_and_empty(self):
+        g = make_graph()
+        g["sessions"].append({"id": "03", "name": "03", "dir": "", "note": "",
+                              "queue": ["2"]})
+        g["sessions"].append({"id": "04", "name": "04", "dir": "", "note": "", "queue": []})
+        states = model.session_states(g)
+        self.assertEqual((states["03"], states["04"]), ("wait-me", "todo"))
+        self.assertIn("sessions: 01-a todo, 02-x wait-me, 03 wait-me, 04 todo",
+                      model.summary_lines(g))
 
     def test_show_empty_graph(self):
         lines = model.summary_lines(model.new_graph("K", "T"))

@@ -25,7 +25,7 @@ usage: fm [--root DIR] TASK COMMAND [ARGS]   (arguments are key=value)
   rm ID
   dep ID (+DEP | -DEPID)... [note=TEXT]      DEP is ID[@STAGE][:part]
   group ID [title=] [estimate=]
-  session ID [name= dir= state= note= queue=a,b,c]
+  session ID [name= dir= note= queue=a,b,c]
   conflict A B WHY      add;  conflict A B -   remove
   show | check
   open [--no-browser]     copy the page next to taskgraph.js and open it
@@ -347,7 +347,9 @@ def _cmd_group(folder: Path, args: list[str]):
 
 
 def _cmd_session(folder: Path, args: list[str]):
-    pos, o = _parse_args(args, {"name", "dir", "state", "note", "queue"},
+    if any(a.startswith("state=") for a in args):
+        raise GraphError("session state is computed from its items; drop 'state='")
+    pos, o = _parse_args(args, {"name", "dir", "note", "queue"},
                          min_pos=1, max_pos=1, cmd="session")
 
     def change(graph: dict) -> str:
@@ -355,15 +357,13 @@ def _cmd_session(folder: Path, args: list[str]):
         ses = next((s for s in sessions if s.get("id") == pos[0]), None)
         verb = "updated"
         if ses is None:
-            ses = {"id": pos[0], "name": pos[0], "dir": "", "state": "todo",
-                   "note": "", "queue": []}
+            ses = {"id": pos[0], "name": pos[0], "dir": "", "note": "", "queue": []}
             sessions.append(ses)
             verb = "created"
         for key in ("name", "dir", "note"):
             if key in o:
                 ses[key] = o[key][0]
-        if "state" in o:
-            ses["state"] = _check_status(o["state"][0])
+        ses.pop("state", None)  # no longer stored: computed from the items
         if "queue" in o:
             ses["queue"] = _split_list(o["queue"][0])
         if verb == "created" and not ses["dir"]:

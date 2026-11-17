@@ -45,7 +45,6 @@ window.TASKGRAPH = {
    "id": "01",
    "name": "payments",
    "dir": "sessions/01-payments",
-   "state": "doing",
    "note": "Gateway integration",
    "queue": [
     "P2",
@@ -56,7 +55,6 @@ window.TASKGRAPH = {
    "id": "02",
    "name": "catalog",
    "dir": "sessions/02-catalog",
-   "state": "wait-me",
    "note": "Needs a decision on search",
    "queue": [
     "C1",
@@ -68,7 +66,6 @@ window.TASKGRAPH = {
    "id": "03",
    "name": "ops",
    "dir": "sessions/03-ops",
-   "state": "todo",
    "note": "",
    "queue": [
     "O2",

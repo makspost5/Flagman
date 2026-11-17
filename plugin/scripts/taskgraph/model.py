@@ -154,8 +154,6 @@ def validate(graph: dict) -> list[str]:
                     problems.append("item '%s': dependency on '%s' has stage %r out of range"
                                     % (iid, did, dstage))
     for s in graph.get("sessions") or []:
-        if s.get("state") not in STATUSES:
-            problems.append("session '%s': unknown state '%s'" % (s.get("id"), s.get("state")))
         for qid in s.get("queue") or []:
             if qid not in seen:
                 problems.append("session '%s': queue has unknown item '%s'"
@@ -268,6 +266,32 @@ def item_states(graph: dict) -> dict[str, str]:
     return states
 
 
+def session_states(graph: dict) -> dict[str, str]:
+    """A session's state follows its items (assigned by `session` or listed in its queue):
+    any waiting on the user -> wait-me, any in progress -> doing, all done -> done,
+    any in review -> review, otherwise (or no items) todo. A stored `state` field is ignored."""
+    states = item_states(graph)
+    result: dict[str, str] = {}
+    for s in graph.get("sessions") or []:
+        sid = s.get("id")
+        mine = [it["id"] for it in graph.get("items") or []
+                if it.get("id") is not None and it.get("session") == sid]
+        mine += [q for q in s.get("queue") or [] if q in states and q not in mine]
+        got = [states[i] for i in mine]
+        if "wait-me" in got:
+            state = "wait-me"
+        elif "doing" in got:
+            state = "doing"
+        elif got and all(x == "done" for x in got):
+            state = "done"
+        elif "review" in got:
+            state = "review"
+        else:
+            state = "todo"
+        result[sid] = state
+    return result
+
+
 def _ids(ids: list[str]) -> str:
     shown = ids[:MAX_IDS_PER_LINE]
     text = ", ".join(shown)
@@ -307,4 +331,9 @@ def summary_lines(graph: dict) -> list[str]:
         extra = len(blocked) - len(parts)
         lines.append("blocked: " + ", ".join(parts)
                      + (" (+%d more)" % extra if extra > 0 else ""))
+    sessions = [s for s in graph.get("sessions") or [] if s.get("id") is not None]
+    if sessions:
+        ses_states = session_states(graph)
+        lines.append("sessions: " + _ids(["%s %s" % (s.get("name") or s["id"], ses_states[s["id"]])
+                                          for s in sessions]))
     return lines[:MAX_SUMMARY_LINES]

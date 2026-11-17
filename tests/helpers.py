@@ -19,10 +19,8 @@ def make_graph(lang: str = "en") -> dict:
     g = model.new_graph("K-1", "Sample task", lang)
     g["groups"] = [{"id": "G", "title": "Group"}]
     g["sessions"] = [
-        {"id": "01", "name": "01-a", "dir": "sessions/01-a", "state": "doing",
-         "note": "", "queue": []},
-        {"id": "02", "name": "02-x", "dir": "sessions/02-x", "state": "wait-me",
-         "note": "", "queue": []},
+        {"id": "01", "name": "01-a", "dir": "sessions/01-a", "note": "", "queue": []},
+        {"id": "02", "name": "02-x", "dir": "sessions/02-x", "note": "", "queue": []},
     ]
 
     def item(iid: str, session: str, stage: int, status: str, deps: list) -> dict:
