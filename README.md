@@ -53,6 +53,8 @@ questions, finishing.
   in the tab title and on the favicon, so a background tab tells you too.
 - **Parallel work** — what is ready to start now and what is blocked, and by what.
 - **Conflicts** — pairs of items that touch the same thing.
+- **Recent changes** — every `fm` change is logged with its time and rev: `fm TASK log` prints
+  the last ones, the page lists them in a collapsible block.
 - **Auto graph** — when a session splits a task into 6 or more items (a plan file such as
   `plan.md` or `docs/.../plans/*.md`, or its todo list) and there is no graph yet, Claude
   offers one, once per session. Set `auto_graph` to `on` to create it without asking, or
@@ -152,6 +154,7 @@ their `.tasks/` folders, and `--root`.
 | `session ID [name= dir= note= queue=a,b]` | create or update a session; its state comes from its items |
 | `conflict A B WHY` / `conflict A B -` | mark or clear a conflict between two items |
 | `show` | short summary: done, waiting on you, in progress, ready, blocked, sessions |
+| `log [n=20]` | the last `n` changes, oldest first: rev, time and the `ok:` message of each |
 | `check` | validate the file (`ok` or a list of problems) |
 | `open [--no-browser]` | copy the page next to `taskgraph.js` and open it |
 | `--version` (or `version`, without `TASK`) | print the plugin version, `flagman X.Y.Z`; include it in bug reports |
@@ -175,7 +178,8 @@ run `bash <plugin>/bin/fm`, or `<plugin>\bin\fm.cmd` on Windows.
 `fm open` writes `taskgraph.html` next to `taskgraph.js` and opens it from `file://`. The page
 re-reads the data every few seconds, so it follows `fm` updates. After a plugin update the
 next `fm` change also replaces that `taskgraph.html` with the new page; reload the tab to
-pick it up. Query parameters:
+pick it up. **Recent changes**, under the hints, lists the last 15 changes, newest first;
+it stays closed until you open it, and the page remembers that. Query parameters:
 `?lang=ru|en`, `?dir=lr|tb`, `?tab=graph|list`, `?poll=MS` (refresh interval, at least 200).
 
 While items wait on you, the tab title starts with their count, `(2) Task map SHOP-1 · Flagman`,
@@ -223,7 +227,8 @@ data folder (`~/.flagman` if unset).
   "items": [{ "id", "title", "group", "session", "stage", "status", "wait",
               "deps": [{ "id", "stage"?, "kind"?, "note" }],
               "summary", "details", "links", "files" }],
-  "conflicts": [{ "a", "b", "why" }] }
+  "conflicts": [{ "a", "b", "why" }],
+  "history": [{ "rev", "at", "msg" }] }
 ```
 
 `stage` is an index into `stages` (`-1` = not started); the last stage means done.
@@ -235,6 +240,11 @@ must hold at least 2 unique, non-empty names. Ids are strings; `import` converts
 to strings and stage names (in `items[].stage` and `deps[].stage`) to indexes, drops a
 session `state`, and sets a missing `version` to 1. Run `fm TASK check` after importing a
 hand-made file.
+
+`history` holds the last 100 changes, oldest first: the rev a change made, its local time
+(`YYYY-MM-DDTHH:MM:SS`) and its `ok:` message, cut to 200 characters. `fm` appends to it on
+every change and keeps it across `import`; a graph from an older `fm` starts its history
+with the next change.
 
 </details>
 
@@ -250,8 +260,9 @@ Graphs outlive plugin updates. Within 1.x:
   change; a graph in a newer format than your `fm` reads is reported and left untouched
   (`format version 2 is newer than this fm reads (1); update the plugin`).
 
-Not covered: the page's HTML, CSS and layout, the wording of the hook reminder and of `fm show`
-output, and anything under `plugin/scripts/` used directly rather than through `fm`.
+Not covered: the page's HTML, CSS and layout, the wording of the hook reminder, of `fm show`
+and `fm log` output and of the `history` messages, and anything under `plugin/scripts/` used
+directly rather than through `fm`.
 
 ## Contributing
 

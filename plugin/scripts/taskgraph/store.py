@@ -138,7 +138,9 @@ def update(folder: Path, change: Callable[[dict], str],
             raise GraphError("; ".join(problems))
         task = graph.setdefault("task", {})
         task["rev"] = int(task.get("rev") or 0) + 1
-        task["updated"] = time.strftime("%Y-%m-%dT%H:%M")
+        now = time.localtime()
+        task["updated"] = time.strftime("%Y-%m-%dT%H:%M", now)
+        model.add_history(graph, task["rev"], time.strftime("%Y-%m-%dT%H:%M:%S", now), msg)
         _write(path, model.dump(graph))
         return graph, msg
     finally:

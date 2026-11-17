@@ -430,6 +430,74 @@ class ImportCreateTests(CliTestCase):
         self.assertFalse((self.tmp / "nope").exists())
 
 
+class LogTests(CliTestCase):
+    def test_every_update_is_logged_and_log_prints_the_last(self):
+        t = self.task()
+        run([t, "start", "3"])
+        run([t, "next", "3", "summary=parser written"])
+        code, out, err = run([t, "log"])
+        self.assertEqual((code, err), (0, ""))
+        lines = out.splitlines()
+        self.assertEqual(len(lines), 2)
+        self.assertRegex(lines[0], r"^rev 1  \d{4}-\d\d-\d\d \d\d:\d\d:\d\d  start 3 status=doing$")
+        self.assertTrue(lines[1].startswith("rev 2  "))
+        self.assertTrue(lines[1].endswith("next 3 stage=plan status=doing summary=parser written"))
+        self.assertEqual([h["rev"] for h in self.graph()["history"]], [1, 2])
+        code, out, _ = run([t, "log", "n=1"])
+        self.assertEqual(out.splitlines(), lines[1:])
+
+    def test_log_of_a_graph_without_history(self):
+        code, out, _ = run([self.task(), "log"])
+        self.assertEqual(code, 0)
+        self.assertIn("no history yet", out)
+
+    def test_log_reads_only(self):
+        t = self.task()
+        before = self.raw()
+        run([t, "log"])
+        self.assertEqual(self.raw(), before)
+
+    def test_log_rejects_a_bad_count(self):
+        t = self.task()
+        for arg in ("n=0", "n=-3", "n=x"):
+            code, _, err = run([t, "log", arg])
+            self.assertEqual(code, 2, arg)
+            self.assertIn("positive number", err)
+        code, _, err = run([t, "log", "m=3"])
+        self.assertEqual(code, 2)
+        self.assertIn("unknown key 'm'", err)
+
+    def test_history_keeps_the_last_entries_and_short_messages(self):
+        t = self.task()
+        for k in range(model.HISTORY_MAX + 5):
+            run([t, "set", "3", "summary=%d" % k])
+        run([t, "set", "3", "summary=" + "x" * 500])
+        hist = self.graph()["history"]
+        self.assertEqual(len(hist), model.HISTORY_MAX)
+        self.assertEqual(hist[-1]["rev"], model.HISTORY_MAX + 6)
+        self.assertEqual(len(hist[-1]["msg"]), model.HISTORY_MSG_MAX)
+        self.assertTrue(hist[-1]["msg"].endswith("…"))
+
+    def test_a_broken_history_starts_over(self):
+        g = make_graph()
+        g["history"] = "not a list"
+        t = str(make_task(self.tmp, g))
+        self.folder = Path(t)
+        self.assertEqual(run([t, "start", "3"])[0], 0)
+        self.assertEqual([h["msg"] for h in self.graph()["history"]], ["start 3 status=doing"])
+
+    def test_import_keeps_the_history(self):
+        t = self.task()
+        run([t, "start", "3"])
+        src = self.tmp / "new.json"
+        new = make_graph()
+        new["history"] = [{"rev": 99, "at": "2020-01-01T00:00:00", "msg": "from elsewhere"}]
+        src.write_text(json.dumps(new), encoding="utf-8")
+        self.assertEqual(run([t, "import", str(src)])[0], 0)
+        self.assertEqual([h["msg"] for h in self.graph()["history"]],
+                         ["start 3 status=doing", "imported 4 items"])
+
+
 class SessionDirTests(CliTestCase):
     def test_new_session_gets_default_dir(self):
         arg = self.task()

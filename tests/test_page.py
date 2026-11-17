@@ -248,6 +248,25 @@ class PageTests(unittest.TestCase):
         self.assertIn("st-wait-me", nodes["2"])
         self.assertIn("st-done", nodes["1"])
 
+    def test_page_recent_changes(self):
+        # Newest first, the item id after the command word is a chip, an old graph has no block.
+        g = make_graph()
+        g["history"] = [{"rev": k, "at": "2026-01-02T03:%02d:00" % k, "msg": "set 3 summary=step %d" % k}
+                        for k in range(1, 21)]
+        g["history"].append({"rev": 21, "at": "2026-01-02T04:00:00", "msg": "created group G"})
+        dom = self._open_graph(g, "?lang=en")
+        self.assertEqual(dom.err_text(), "")
+        self.assertIsNone(dom.first("details", id="changes").get("hidden"))
+        self.assertIn("Recent changes", dom.text)
+        self.assertIn("01-02 04:00created group G rev 21", dom.text)
+        self.assertLess(dom.text.index("rev 21"), dom.text.index("rev 20"))
+        self.assertIn("summary=step 7", dom.text)
+        self.assertNotIn("summary=step 6", dom.text)  # 15 shown
+        self.assertIsNotNone(dom.first("span", **{"class": "chip", "data-go": "3"}))
+        old = self._open_graph(make_graph(), "?lang=ru")
+        self.assertIsNotNone(old.first("details", id="changes").get("hidden"))
+        self.assertEqual(old.err_text(), "")
+
     def test_page_review_status(self):
         g = make_graph()
         g["items"][2]["status"] = "review"
