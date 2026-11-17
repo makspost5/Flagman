@@ -12,6 +12,7 @@ with one of the templates. For a vulnerability, do not open an issue: see [SECUR
 | `plugin/scripts/hook` | The hook launcher |
 | `plugin/hooks/hooks.json` | When the hook runs |
 | `plugin/skills/graph/` | The skill that tells a session how to use `fm` |
+| `plugin/evals/` | Evals for the skill: does a session use `fm` the way the skill says |
 | `plugin/page/taskgraph.html` | The page: one HTML file with inline CSS and JavaScript, no build step |
 | `tests/` | Tests for all of the above |
 | `examples/demo/` | The demo graph and `scenario.txt`, the steps the live demo replays |
@@ -63,17 +64,50 @@ build (and the tests). The `demo` workflow publishes `_site/` to GitHub Pages on
 After changing the page or the scenario, record the README GIF again and commit it:
 `python tools/demo_gif.py` (needs Pillow and Edge or Chrome).
 
+## Skill evals
+
+`plugin/evals/` holds a `claude plugin eval` suite for the `/flagman:graph` skill. Each case
+starts from a small task SHOP (its `scaffold.sh` writes the graph or a plan) and gives a
+session one request: create a graph, mark an item finished, wait on the user, import a graph
+for a running task, report a stage. The graders check the graph file and the commands:
+
+- the graph has the expected items, stages and statuses, and `fm check` passes;
+- the session changed it with `fm`, never by editing `taskgraph.js` (Edit, Write or a shell
+  redirect);
+- in PowerShell it did not run `bash fm ...` (that is WSL there).
+
+Run the suite after changing the skill text or a command it names, and before a release:
+
+```
+claude plugin eval ./plugin --trust-plugin --scaffold --allow-tools Bash PowerShell Edit Write --no-publish
+```
+
+`--scaffold` runs the cases' `scaffold.sh` and `--allow-tools` lets the session run `fm`; both
+are needed. Each case runs three times with the plugin and three times without it; the
+headline is the difference. Results go to `plugin/evals/results/` (not committed). A run uses
+your Claude account and costs about as much as the same number of short sessions.
+
+The sessions run `fm` in Bash or PowerShell, and `claude plugin eval` grants a shell only
+inside its sandbox, which needs macOS or Linux (on Linux and WSL: `bubblewrap` and `socat`).
+On native Windows every case is refused before the model runs; use WSL or another machine.
+
+`tests/test_evals.py` plays the commands a correct session would run on each scaffold and
+checks that every grader on the graph file passes, so a change to `fm` or the file format
+that would break the suite fails the ordinary tests first. Keep the case files in the layout
+the test reads: graders as a list under `graders:`, one `pattern:` per line in single quotes.
+
 ## Releasing
 
-1. Add what changed to `CHANGELOG.md` as you merge: each pull request that changes behavior
+1. Run the [skill evals](#skill-evals); every case should pass with the plugin.
+2. Add what changed to `CHANGELOG.md` as you merge: each pull request that changes behavior
    adds a line, with its issue number, to the top entry that has no date yet
    (`## [Unreleased]`, or `## [X.Y.Z] - Unreleased` once the version is known).
-2. Pick the version by [Semantic Versioning](https://semver.org/) and the promise under
+3. Pick the version by [Semantic Versioning](https://semver.org/) and the promise under
    [Compatibility](README.md#compatibility): a fix is a patch, a new command or field a minor
    version, a breaking change waits for 2.0.
-3. In one pull request: set `version` in `plugin/.claude-plugin/plugin.json`, give the
+4. In one pull request: set `version` in `plugin/.claude-plugin/plugin.json`, give the
    entry its heading `[X.Y.Z] - YYYY-MM-DD`, and add the `[X.Y.Z]` link at the bottom.
-4. After it is merged, tag the merge commit and publish the release with that changelog entry
+5. After it is merged, tag the merge commit and publish the release with that changelog entry
    as its notes:
 
    ```
@@ -82,7 +116,7 @@ After changing the page or the scenario, record the README GIF again and commit 
    gh release create vX.Y.Z --title "Flagman X.Y.Z" --notes-file <the entry>
    ```
 
-5. Check that `/plugin marketplace update flagman` on an installed copy picks up the new
+6. Check that `/plugin marketplace update flagman` on an installed copy picks up the new
    version (`fm --version`).
 
 ## Code style

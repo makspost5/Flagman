@@ -5,3 +5,4 @@ examples/demo/taskgraph.html
 *.log
 _site/
 _site/
+plugin/evals/results/
