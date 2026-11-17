@@ -3,6 +3,8 @@
   <img src="docs/brand/banner-light.png" alt="Flagman. Run big tasks with ease. See everything at a glance.">
 </picture>
 
+[![tests](https://github.com/makspost5/Flagman/actions/workflows/tests.yml/badge.svg)](https://github.com/makspost5/Flagman/actions/workflows/tests.yml)
+
 <img src="docs/brand/mascot.png" width="240" align="right" alt="The Flagman mascot: a robot in a cap with a flag">
 
 **Flagman** is a Claude Code plugin for big tasks split into many items and run by several
@@ -33,7 +35,7 @@ Claude creates `taskgraph.js` in the task folder and opens the page. From then o
 session updates its own items with the `fm` command, and the page refreshes by itself.
 
 > Requirements: Python 3.9+ (standard library only), bash (Git Bash on Windows), a browser.
-> Tested on Windows; the code is portable, but macOS and Linux are not verified yet.
+> Tested on Windows, macOS and Linux.
 
 ## What you get
 
@@ -199,7 +201,9 @@ Run the tests:
 py -3 -m unittest discover -s tests -t . -v
 ```
 
-The page tests use Microsoft Edge in headless mode and are skipped when no browser is found.
+The page tests use headless Edge or Chrome (set `TASKGRAPH_BROWSER` to pick one) and are
+skipped when no browser is found; with `TASKGRAPH_REQUIRE_BROWSER=1`, as in CI, a missing
+browser is a failure. CI runs the tests on Windows, macOS and Ubuntu with Python 3.9 and 3.13.
 
 <details>
 <summary>Notes for maintainers on Windows</summary>

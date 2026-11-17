@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import tempfile
 import unittest
@@ -86,6 +87,16 @@ def _item(iid: str, deps: list) -> dict:
     return {"id": iid, "title": "Item " + iid, "group": "G", "session": None, "stage": -1,
             "status": "todo", "wait": "", "deps": deps, "summary": "", "details": [],
             "links": [], "files": []}
+
+
+class BrowserPresenceTest(unittest.TestCase):
+    """In CI (TASKGRAPH_REQUIRE_BROWSER=1) a missing browser fails instead of skipping the page tests."""
+
+    @unittest.skipUnless(os.environ.get("TASKGRAPH_REQUIRE_BROWSER"), "browser not required")
+    def test_browser_found(self):
+        self.assertIsNotNone(find_browser(),
+                             "TASKGRAPH_REQUIRE_BROWSER is set, but no Chromium-based browser "
+                             "was found (set TASKGRAPH_BROWSER)")
 
 
 @unittest.skipIf(find_browser() is None, "no Chromium-based browser (set TASKGRAPH_BROWSER)")
