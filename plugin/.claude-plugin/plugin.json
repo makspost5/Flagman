@@ -13,6 +13,12 @@
       "type": "string",
       "title": "Graph language",
       "description": "Language of new graphs: en or ru; empty = en"
+    },
+    "watch_files": {
+      "type": "string",
+      "title": "Watched files",
+      "description": "Comma-separated file names or globs (e.g. PROGRESS.md,*.status.md) whose edits remind a session to update the graph",
+      "default": "status.md,plan.md"
     }
   }
 }

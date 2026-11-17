@@ -16,15 +16,39 @@ _fm_full=0
 [ "${#_fm_input}" -ge "$_fm_max" ] && _fm_full=1
 case "$1" in
     post-tool)
+        # watch_files setting (CLAUDE_PLUGIN_OPTION_WATCH_FILES): comma-separated file
+        # names or globs, matched against the file name without case; nothing set means
+        # status.md,plan.md. hook.py applies the same rule.
+        _fm_re='"file_path"[[:space:]]*:[[:space:]]*"([^"]*)"'
         case "$_fm_input" in
             *'"file_path"'*)
-                case "$_fm_input" in
-                    *[/\\]'status.md"'* | *[/\\]'plan.md"'*) ;;
-                    *)
+                if [[ $_fm_input =~ $_fm_re ]]; then
+                    _fm_name="${BASH_REMATCH[1]##*[/\\]}"
+                    _fm_pats=()
+                    IFS=, read -r -a _fm_raw <<< "${CLAUDE_PLUGIN_OPTION_WATCH_FILES:-}"
+                    for _fm_p in "${_fm_raw[@]}"; do
+                        _fm_p="${_fm_p#"${_fm_p%%[! ]*}"}"
+                        _fm_p="${_fm_p%"${_fm_p##*[! ]}"}"
+                        case "$_fm_p" in ''|'${user_config.'*) ;; *) _fm_pats+=("$_fm_p") ;; esac
+                    done
+                    [ "${#_fm_pats[@]}" -gt 0 ] || _fm_pats=(status.md plan.md)
+                    _fm_hit=0
+                    # a JSON escape in the name: let Python decide
+                    case "$_fm_name" in *'\u'*) _fm_hit=1 ;; esac
+                    _fm_nc=$(shopt -p nocasematch)
+                    shopt -s nocasematch
+                    for _fm_p in "${_fm_pats[@]}"; do
+                        # shellcheck disable=SC2254
+                        case "$_fm_name" in $_fm_p) _fm_hit=1; break ;; esac
+                    done
+                    eval "$_fm_nc"
+                    if [ "$_fm_hit" = 0 ]; then
                         [ "$_fm_full" = 1 ] && cat >/dev/null 2>&1
                         exit 0
-                        ;;
-                esac
+                    fi
+                elif [ "$_fm_full" = 0 ]; then
+                    exit 0
+                fi
                 ;;
             *)
                 # the path may follow a long old_string/content: let Python decide

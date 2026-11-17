@@ -1,6 +1,7 @@
 """PostToolUse / UserPromptSubmit logic of the reminder hook."""
 from __future__ import annotations
 
+import fnmatch
 import hashlib
 import json
 import os
@@ -11,8 +12,23 @@ from pathlib import Path
 
 from . import model, store
 
-WATCHED = ("status.md", "plan.md")
+DEFAULT_WATCH = "status.md,plan.md"
+WATCH_ENV = "CLAUDE_PLUGIN_OPTION_WATCH_FILES"  # the plugin's watch_files setting
 MAX_ITEMS = 8
+
+
+def watch_patterns(value: str | None = None) -> list[str]:
+    """File names or globs from the watch_files setting; empty means the default."""
+    if value is None:
+        value = os.environ.get(WATCH_ENV, "")
+    pats = [p.strip().lower() for p in value.split(",")]
+    pats = [p for p in pats if p and not p.startswith("${user_config.")]
+    return pats or DEFAULT_WATCH.split(",")
+
+
+def is_watched(file_path: str, patterns: list[str]) -> bool:
+    name = os.path.basename(file_path.replace("\\", "/")).lower()
+    return any(fnmatch.fnmatchcase(name, p) for p in patterns)
 
 
 def _norm(path) -> str:
@@ -76,12 +92,13 @@ def _neutral_text(graph: dict, task: Path, cmd: str) -> str:
             % (graph["task"]["key"], cmd, task, cmd, task))
 
 
-def handle_post_tool(payload: dict, state_dir: Path, fm_cmd: str) -> str | None:
+def handle_post_tool(payload: dict, state_dir: Path, fm_cmd: str,
+                     patterns: list[str] | None = None) -> str | None:
     tool_input = payload.get("tool_input") or {}
     file_path = tool_input.get("file_path")
     if not isinstance(file_path, str) or not file_path:
         return None
-    if os.path.basename(file_path.replace("\\", "/")) not in WATCHED:
+    if not is_watched(file_path, patterns if patterns is not None else watch_patterns()):
         return None
     task = store.find_graph_upwards(file_path)
     if task is None:
