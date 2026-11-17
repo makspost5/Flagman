@@ -112,6 +112,8 @@ Install the plugin at user level to have it in every session.
 /reload-plugins
 ```
 
+What changed: [CHANGELOG.md](CHANGELOG.md).
+
 ```
 /plugin uninstall flagman@flagman
 ```
@@ -247,7 +249,8 @@ output, and anything under `plugin/scripts/` used directly rather than through `
 
 Run the tests with `python -m unittest discover -s tests -t . -v`. How to try the plugin from
 a local checkout, the code style and the Windows notes are in [CONTRIBUTING.md](CONTRIBUTING.md).
-Report vulnerabilities privately: see [SECURITY.md](SECURITY.md).
+Report vulnerabilities privately: see [SECURITY.md](SECURITY.md). What changed in each release
+is in [CHANGELOG.md](CHANGELOG.md).
 
 ## Brand
 
