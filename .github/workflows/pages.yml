@@ -1,0 +1,47 @@
+name: demo
+
+# The live demo on GitHub Pages: the page plus examples/demo replayed step by step
+# (tools/demo_site.py). Pages must use "GitHub Actions" as its source.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "plugin/page/**"
+      - "plugin/scripts/taskgraph/**"
+      - "examples/demo/**"
+      - "tools/demo_site.py"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Build the demo site
+        run: python tools/demo_site.py _site
+
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: _site
+
+      - id: deployment
+        uses: actions/deploy-pages@v4
