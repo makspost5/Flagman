@@ -447,6 +447,52 @@ class LauncherTests(CliTestCase):
         code, out, err = run([])
         self.assertIn("usage: fm ", out + err)
 
+    def test_bash_launcher_version(self):
+        res = subprocess.run([find_bash(), str(helpers.ROOT / "plugin" / "bin" / "fm"),
+                              "--version"], capture_output=True)
+        self.assertEqual(res.returncode, 0, res.stderr.decode("utf-8", "replace"))
+        self.assertEqual(res.stdout.decode("utf-8").strip(), "flagman " + plugin_version())
+
+
+def plugin_version() -> str:
+    path = helpers.ROOT / "plugin" / ".claude-plugin" / "plugin.json"
+    return json.loads(path.read_text(encoding="utf-8"))["version"]
+
+
+class VersionTests(CliTestCase):
+    def test_version_flag_and_command(self):
+        for argv in (["--version"], ["version"]):
+            code, out, err = run(argv)
+            self.assertEqual((code, err), (0, ""), argv)
+            self.assertEqual(out, "flagman %s\n" % plugin_version(), argv)
+
+    def test_version_ignores_root(self):
+        code, out, _ = run(["--root", str(self.tmp), "--version"])
+        self.assertEqual((code, out), (0, "flagman %s\n" % plugin_version()))
+
+    def test_task_named_version_still_works(self):
+        self.task()
+        named = self.tmp / ".tasks" / "version"
+        named.mkdir()
+        shutil.copy(self.folder / "taskgraph.js", named / "taskgraph.js")
+        code, out, err = run(["version", "show"], cwd=str(self.tmp))
+        self.assertEqual(code, 0, err)
+        self.assertIn("K-1", out)
+
+    def test_version_without_plugin_json(self):
+        missing = self.tmp / "plugin.json"
+        old = cli.PLUGIN_JSON
+        cli.PLUGIN_JSON = missing
+        try:
+            code, out, err = run(["--version"])
+        finally:
+            cli.PLUGIN_JSON = old
+        self.assertEqual((code, out), (1, ""))
+        self.assertIn("plugin.json", err)
+
+    def test_usage_mentions_version(self):
+        self.assertIn("--version", cli.USAGE)
+
 
 if __name__ == "__main__":
     unittest.main()

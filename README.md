@@ -109,6 +109,7 @@ Claude runs these for you through the `/flagman:graph` skill; you rarely need th
 
 ```
 fm [--root DIR] TASK COMMAND [key=value ...]
+fm --version
 ```
 
 `TASK` is a task folder path, or a folder name looked up in the current folder, its parents,
@@ -128,6 +129,7 @@ their `.tasks/` folders, and `--root`.
 | `show` | short summary: done, waiting on you, in progress, ready, blocked |
 | `check` | validate the file (`ok` or a list of problems) |
 | `open [--no-browser]` | copy the page next to `taskgraph.js` and open it |
+| `--version` (or `version`, without `TASK`) | print the plugin version, `flagman X.Y.Z`; include it in bug reports |
 
 Example:
 

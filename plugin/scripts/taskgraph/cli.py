@@ -13,6 +13,7 @@ from .model import GraphError
 
 USAGE = """\
 usage: fm [--root DIR] TASK COMMAND [ARGS]   (arguments are key=value)
+       fm --version
   init TITLE [lang=en|ru] [due=YYYY-MM-DD] [link=LABEL|HREF]...
   import FILE.json
   set ID [stage=] [status=] [wait=] [summary=] [title=] [group=] [session=]
@@ -362,6 +363,16 @@ _COMMANDS = {"init", "show", "check", "open", *_UPDATE_COMMANDS}
 
 
 PAGE_TEMPLATE = Path(__file__).resolve().parent.parent.parent / "page" / "taskgraph.html"
+PLUGIN_JSON = Path(__file__).resolve().parent.parent.parent / ".claude-plugin" / "plugin.json"
+
+
+def _version() -> str:
+    """The plugin version from plugin.json, the one place a release sets it."""
+    try:
+        version = json.loads(PLUGIN_JSON.read_text(encoding="utf-8"))["version"]
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        raise GraphError("cannot read the version from %s: %s" % (PLUGIN_JSON, exc)) from exc
+    return "flagman %s" % version
 
 
 def _cmd_open(folder: Path, args: list[str], out) -> int:
@@ -392,6 +403,9 @@ def _run(argv: list[str], cwd: str, out, err) -> int:
         else:
             root = args[0][len("--root="):]
             del args[:1]
+    if args in (["--version"], ["version"]):
+        out.write(_version() + "\n")
+        return 0
     if len(args) < 2:
         raise UsageError("need TASK and COMMAND")
     task, command, rest = args[0], args[1], args[2:]
