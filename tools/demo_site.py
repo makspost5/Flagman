@@ -141,7 +141,9 @@ def build(out: Path) -> list[dict]:
     frames = record((DEMO / "scenario.txt").read_text(encoding="utf-8"))
     out.mkdir(parents=True, exist_ok=True)
     shutil.copy(PAGE, out / "index.html")
-    (out / "taskgraph.js").write_text(player_js(frames), encoding="utf-8", newline="\n")
+    # open(), not write_text(newline=): that needs Python 3.10
+    with open(out / "taskgraph.js", "w", encoding="utf-8", newline="\n") as f:
+        f.write(player_js(frames))
     (out / ".nojekyll").write_text("", encoding="utf-8")
     return frames
 
