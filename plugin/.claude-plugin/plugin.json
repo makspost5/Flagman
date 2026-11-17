@@ -2,6 +2,11 @@
   "name": "flagman",
   "version": "1.0.0",
   "license": "MIT",
+  "author": { "name": "makspost5", "url": "https://github.com/makspost5" },
+  "homepage": "https://makspost5.github.io/Flagman/",
+  "repository": "https://github.com/makspost5/Flagman",
+  "keywords": ["task graph", "parallel sessions", "planning", "dependencies"],
+  "icon": ".claude-plugin/icon.png",
   "description": "A live map of a big task: items with stages and statuses, updated by the fm command and shown in a local web page.",
   "userConfig": {
     "tasks_dir": {
