@@ -285,7 +285,7 @@ class PageTests(unittest.TestCase):
             self.assertIn(label, dom.text)
 
     def test_page_empty_graph(self):
-        dom = self._open_graph(model.new_graph("K", "T"))
+        dom = self._open_graph(model.new_graph("K", "T", "ru"))
         self.assertEqual(dom.nodes(), {})
         self.assertEqual(dom.err_text(), "")
         self.assertEqual(dom.first("body").get("data-rev"), "0")

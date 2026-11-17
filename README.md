@@ -83,11 +83,12 @@ These lines make every session use the graph without being asked:
 
 ## Configuration
 
-One optional setting, asked for when the plugin is enabled:
+Optional settings, asked for when the plugin is enabled. Both can stay empty.
 
 | Setting | Meaning |
 |---|---|
 | `tasks_dir` | Folder where task folders live. Empty: `fm` finds the task from the current folder. |
+| `lang` | Language of new graphs: `en` or `ru` (stage names, the page's default language). Empty: `en`. |
 
 Install the plugin at user level to have it in every session.
 
@@ -116,7 +117,7 @@ their `.tasks/` folders, and `--root`.
 
 | Command | Meaning |
 |---|---|
-| `init TITLE [lang=ru\|en] [due=YYYY-MM-DD] [link=LABEL\|HREF]` | create `taskgraph.js` |
+| `init TITLE [lang=en\|ru] [due=YYYY-MM-DD] [link=LABEL\|HREF]` | create `taskgraph.js`; `lang` sets the stage names, default `en` |
 | `import FILE.json` | replace the graph from a JSON file |
 | `add ID TITLE [group= session= stage= status= after=A,B summary= wait= detail= file= link=]` | add an item |
 | `set ID [stage= status= wait= summary= title= group= session=]` | change an item |

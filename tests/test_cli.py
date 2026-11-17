@@ -58,6 +58,33 @@ class InitTests(CliTestCase):
         self.assertEqual(code, 0)
         self.assertIn("no items yet", out)
 
+    def test_init_default_lang_is_en(self):
+        for extra in ([], ["lang="], ["lang=${user_config.lang}"]):
+            with self.subTest(extra=extra):
+                folder = self.tmp / ("L-%d" % len(list(self.tmp.iterdir())))
+                folder.mkdir()
+                code, out, err = run([str(folder), "init", "T"] + extra)
+                self.assertEqual((code, err), (0, ""), out)
+                g = store.load(folder)
+                self.assertEqual(g["lang"], "en")
+                self.assertEqual(g["stages"], model.DEFAULT_STAGES["en"])
+
+    def test_init_lang_ru_on_request(self):
+        folder = self.tmp / "R-1"
+        folder.mkdir()
+        code, out, err = run([str(folder), "init", "T", "lang=ru"])
+        self.assertEqual((code, err), (0, ""), out)
+        g = store.load(folder)
+        self.assertEqual((g["lang"], g["stages"]), ("ru", model.DEFAULT_STAGES["ru"]))
+
+    def test_init_rejects_unknown_lang(self):
+        folder = self.tmp / "X-1"
+        folder.mkdir()
+        code, _, err = run([str(folder), "init", "T", "lang=de"])
+        self.assertEqual(code, 1)
+        self.assertIn("unknown lang 'de'", err)
+        self.assertFalse((folder / "taskgraph.js").exists())
+
     def test_show_empty_graph(self):
         folder = self.tmp / "T-8"
         folder.mkdir()

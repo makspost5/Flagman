@@ -14,7 +14,7 @@ from .model import GraphError
 USAGE = """\
 usage: fm [--root DIR] TASK COMMAND [ARGS]   (arguments are key=value)
        fm --version
-  init TITLE [lang=ru|en] [due=YYYY-MM-DD] [link=LABEL|HREF]...
+  init TITLE [lang=en|ru] [due=YYYY-MM-DD] [link=LABEL|HREF]...
   import FILE.json
   set ID [stage=] [status=] [wait=] [summary=] [title=] [group=] [session=]
   add ID TITLE [group= session= stage= status= after=DEP,DEP summary= wait=]
@@ -130,7 +130,10 @@ def _apply_stage_status(graph: dict, it: dict, stage, status, wait) -> list[str]
 
 def _cmd_init(folder: Path, args: list[str]):
     pos, o = _parse_args(args, {"lang", "due", "link"}, {"link"}, 1, 1, "init")
-    lang = _one(o, "lang") or "ru"
+    lang = _one(o, "lang")
+    # Empty, or the skill's ${user_config.lang} left unsubstituted: use the default.
+    if not lang or lang.startswith("${user_config."):
+        lang = model.DEFAULT_LANG
     if lang not in model.LANGS:
         raise GraphError("unknown lang '%s' (expected one of %s)"
                          % (lang, ", ".join(model.LANGS)))
