@@ -20,6 +20,13 @@ case "$1" in
         # names or globs, matched against the file name without case; nothing set means
         # status.md,plan.md. hook.py applies the same rule.
         _fm_re='"file_path"[[:space:]]*:[[:space:]]*"([^"]*)"'
+        # auto_graph setting (CLAUDE_PLUGIN_OPTION_AUTO_GRAPH): off, ask or on; anything
+        # else is ask. Unless off, plan files and the todo tools go to Python too
+        # (taskgraph/autograph.py has the same rule).
+        _fm_auto=1
+        _fm_a="${CLAUDE_PLUGIN_OPTION_AUTO_GRAPH:-}"
+        _fm_a="${_fm_a//[[:space:]]/}"
+        case "$_fm_a" in [Oo][Ff][Ff]) _fm_auto=0 ;; esac
         case "$_fm_input" in
             *'"file_path"'*)
                 if [[ $_fm_input =~ $_fm_re ]]; then
@@ -41,6 +48,13 @@ case "$1" in
                         # shellcheck disable=SC2254
                         case "$_fm_name" in $_fm_p) _fm_hit=1; break ;; esac
                     done
+                    # a plan: *.md with "plan" in the name or in a plans/ folder
+                    if [ "$_fm_hit" = 0 ] && [ "$_fm_auto" = 1 ]; then
+                        case "$_fm_name" in
+                            *plan*.md) _fm_hit=1 ;;
+                            *.md) case "${BASH_REMATCH[1]}" in *[/\\]plans[/\\]*) _fm_hit=1 ;; esac ;;
+                        esac
+                    fi
                     eval "$_fm_nc"
                     if [ "$_fm_hit" = 0 ]; then
                         [ "$_fm_full" = 1 ] && cat >/dev/null 2>&1
@@ -49,6 +63,9 @@ case "$1" in
                 elif [ "$_fm_full" = 0 ]; then
                     exit 0
                 fi
+                ;;
+            *'"tool_name"'*'"TodoWrite"'*|*'"tool_name"'*'"TaskCreate"'*)
+                [ "$_fm_auto" = 1 ] || { [ "$_fm_full" = 1 ] && cat >/dev/null 2>&1; exit 0; }
                 ;;
             *)
                 # the path may follow a long old_string/content: let Python decide

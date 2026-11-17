@@ -53,6 +53,10 @@ questions, finishing.
   in the tab title and on the favicon, so a background tab tells you too.
 - **Parallel work** — what is ready to start now and what is blocked, and by what.
 - **Conflicts** — pairs of items that touch the same thing.
+- **Auto graph** — when a session splits a task into 6 or more items (a plan file such as
+  `plan.md` or `docs/.../plans/*.md`, or its todo list) and there is no graph yet, Claude
+  offers one, once per session. Set `auto_graph` to `on` to create it without asking, or
+  `off` to keep graphs on request only.
 - **A reminder hook** — when a session edits its `plan.md` or `status.md` (or the files you set), Claude is reminded
   to update the graph with the exact command.
 
@@ -102,6 +106,8 @@ Optional settings, asked for when the plugin is enabled. All can stay empty.
 | `tasks_dir` | Folder where task folders live. Empty: `fm` finds the task from the current folder. |
 | `lang` | Language of new graphs: `en` or `ru` (stage names, the page's default language). Empty: `en`. |
 | `watch_files` | Files whose edits remind a session to update the graph: comma-separated names or globs, matched against the file name without case, e.g. `PROGRESS.md,*.status.md`. Default and empty: `status.md,plan.md`. |
+| `auto_graph` | What to do when a task is split into many items and has no graph: `ask` (offer one), `on` (create it), `off` (only on request). Default and empty: `ask`. |
+| `auto_graph_min` | How many items make a task big enough: top-level list items or numbered task headings (`### Task 3:`) in a plan file, or entries in the todo list. Default and empty: `6`. |
 
 Install the plugin at user level to have it in every session.
 
