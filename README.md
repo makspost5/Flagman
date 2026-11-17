@@ -40,6 +40,8 @@ session updates its own items with the `fm` command, and the page refreshes by i
 ## What you get
 
 - **A graph and a list** of the task items, laid out left-to-right or top-to-bottom, RU/EN.
+  The graph orders items to keep arrows from crossing and gives each arrow its own track;
+  hover or click an item to light up its dependencies, dependents and conflicts.
 - **Stages and statuses** for every item. Stages: plan, code, review, PR, merged, done.
   Statuses: `todo`, `doing`, `wait-me`, `review`, `done`.
 - **"Waits on you"** — items with `wait-me` and the exact question for you. The count shows

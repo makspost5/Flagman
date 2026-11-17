@@ -160,6 +160,86 @@ class PageTests(unittest.TestCase):
             label = dom.first("text", **{"class": "cflabel"})
             self.assertTrue(min(xs) <= float(label["x"]) <= max(xs) + w, (layout, label["x"]))
 
+    def _fan_in_graph(self) -> dict:
+        # Ten sources, three middle items and one wide sink that needs every source, as on a real
+        # release graph. The data order is scrambled on purpose: the page has to find a good order.
+        g = model.new_graph("K", "T", lang="en")
+        src = ["S%d" % i for i in range(10)]
+        g["items"] = [_item(s, []) for s in src]
+        g["items"] += [_item("M1", [{"id": "S9", "note": ""}, {"id": "S0", "note": ""}]),
+                       _item("M2", [{"id": "S1", "note": ""}, {"id": "S8", "note": ""}]),
+                       _item("M3", [{"id": "S2", "note": ""}, {"id": "S7", "note": ""}]),
+                       _item("SINK", [{"id": s, "note": ""} for s in src])]
+        return g
+
+    def _segments(self, dom: _Dom) -> list:
+        """(edge index, horizontal?, fixed coordinate, low, high) for every straight piece of every arrow."""
+        out = []
+        paths = [a for t, a in dom.tags if t == "path" and "edge" in _classes(a)]
+        for k, a in enumerate(paths):
+            pts = []
+            for cmd in a["d"].replace("M", "|M").replace("L", "|L").replace("Q", "|Q").split("|")[1:]:
+                nums = [float(n) for n in cmd[1:].replace(",", " ").split()]
+                pts.append((cmd[0], nums[-2], nums[-1]))
+            for (c0, x0, y0), (c1, x1, y1) in zip(pts, pts[1:]):
+                if c1 != "L" or (x0, y0) == (x1, y1):
+                    continue
+                if y0 == y1:
+                    out.append((k, True, y0, min(x0, x1), max(x0, x1)))
+                elif x0 == x1:
+                    out.append((k, False, x0, min(y0, y1), max(y0, y1)))
+        return out
+
+    def test_page_wide_sink_arrows_keep_apart(self):
+        # Every arrow gets its own port and its own track: no two arrows share a piece of line, and the
+        # ten arrowheads on the sink stay at least 12 px apart.
+        for layout in ("lr", "tb"):
+            dom = self._open_graph(self._fan_in_graph(), "?dir=" + layout)
+            self.assertEqual(dom.err_text(), "")
+            segs = self._segments(dom)
+            for i, s in enumerate(segs):
+                for t in segs[i + 1:]:
+                    if s[0] != t[0] and s[1] == t[1] and abs(s[2] - t[2]) < 0.5:
+                        self.assertLessEqual(min(s[4], t[4]) - max(s[3], t[3]), 0.5, (layout, s, t))
+            ends = []
+            for t, a in dom.tags:
+                if t == "path" and "edge" in _classes(a) and a.get("data-b") == "SINK":
+                    x, y = a["d"].split("L")[-1].split(",")
+                    ends.append(float(y) if layout == "lr" else float(x))
+            self.assertEqual(len(ends), 10)
+            ends.sort()
+            self.assertGreaterEqual(min(b - a for a, b in zip(ends, ends[1:])), 12, (layout, ends))
+
+    def test_page_orders_layers_to_avoid_crossings(self):
+        # Two layers of a real release graph: a smoke test (N2) needs all ten items of the first layer, and
+        # three more items need overlapping sets of them. Some crossings cannot be avoided (the best order
+        # has 20); sorting by neighbours alone stops at 40, the search must get close to the minimum.
+        needs = {"I12": ["I1", "N4"], "I3": ["I10", "I8", "I4"], "N1": ["I8", "I10"],
+                 "I2": ["I6", "I8", "I10", "I4", "N6"],
+                 "N2": ["I1", "I4", "I5", "I6", "I8", "I10", "N3", "N4", "N5", "N6"]}
+        g = model.new_graph("K", "T", lang="en")
+        g["items"] = [_item(s, []) for s in ("I1", "I4", "I10", "I5", "I8", "I6", "N3", "N4", "N5", "N6")]
+        g["items"] += [_item(b, [{"id": a, "note": ""} for a in deps]) for b, deps in needs.items()]
+        for layout in ("lr", "tb"):
+            dom = self._open_graph(g, "?dir=" + layout)
+            self.assertEqual(dom.err_text(), "")
+            crossings = int(dom.first("div", id="graph").get("data-crossings"))
+            self.assertLessEqual(crossings, 22, layout)
+
+    def test_page_conflict_line_only_for_selected_item(self):
+        # A conflict shows as a mark on both items; its line is hidden until one of them is selected.
+        g = make_graph()
+        g["conflicts"] = [{"a": "3", "b": "2", "why": "both edit one file"}]
+        plain = self._open_graph(g, "?lang=en")
+        group = plain.first("g", **{"class": "cfl"})
+        self.assertIsNotNone(group)
+        marks = [a for t, a in plain.tags if t == "tspan" and "cfmark" in _classes(a)]
+        self.assertEqual(len(marks), 2)
+        selected = self._open_graph(g, "?lang=en#3")
+        self.assertIsNotNone(selected.first("g", **{"class": "cfl on"}))
+        other = self._open_graph(g, "?lang=en#1")
+        self.assertIsNone(other.first("g", **{"class": "cfl on"}))
+
     def test_page_states(self):
         nodes = self._open_graph(make_graph()).nodes()
         self.assertIn("st-ready", nodes["3"])

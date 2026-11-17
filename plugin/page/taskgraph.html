@@ -100,11 +100,16 @@ svg text { fill: var(--text); font-family: inherit; }
 .st-ready .tint { fill: var(--ready); } .st-blocked .tint { fill: var(--blocked); }
 .nid { font-weight: 700; font-size: 12px; } .ntitle { font-size: 11.5px; } .nmeta { font-size: 10px; fill: var(--muted) !important; }
 .sd { fill: none; stroke: var(--dot-off); } .sd.on { fill: var(--text); stroke: var(--text); }
-.edge { fill: none; stroke-width: 2; }
+/* Arrows stay quiet until an item is selected or hovered: then its own arrows are bright, the rest fade. */
+.edge { fill: none; stroke-width: 1.5; opacity: .6; }
 .edge.met { stroke: var(--met); } .edge.unmet { stroke: var(--unmet); } .edge.part { stroke-dasharray: 2 3; }
-.edge.dim { opacity: .12; }
+.edge.dim { opacity: .1; }
+.edge.hl { stroke-width: 2.6; opacity: 1; }
+.halo { fill: none; stroke: var(--canvas); stroke-width: 6; }
+.cfl { display: none; } .cfl.on { display: inline; }
 .cf { fill: none; stroke: var(--conflict); stroke-width: 1.5; stroke-dasharray: 5 4; }
-.cflabel { fill: var(--conflict) !important; font-weight: 700; font-size: 12px; }
+.cflabel, .cfmark { fill: var(--conflict) !important; font-weight: 700; font-size: 12px; }
+.cfmark { font-size: 11px; }
 .mk-met { fill: var(--met); } .mk-unmet { fill: var(--unmet); }
 .detail { min-height: 0; overflow: auto; }
 .detail h3 { margin: 0 0 4px; font-size: 14px; }
@@ -568,6 +573,71 @@ details.item .body { padding: 6px 0 10px; }
   const box = $("graph");
   let natural = { w: 1, h: 1 }, vb = { x: 0, y: 0, w: 1, h: 1 };
 
+  // An orthogonal polyline through flow-coordinate points [u, v], corners rounded by up to R.
+  function ortho(pts, xy, R) {
+    const p = pts.filter(function (q, i) { return i === 0 || q[0] !== pts[i - 1][0] || q[1] !== pts[i - 1][1]; });
+    let d = "M" + xy(p[0][0], p[0][1]);
+    for (let i = 1; i < p.length; i++) {
+      const q = p[i];
+      if (i < p.length - 1) {
+        const a = p[i - 1], b = p[i + 1];
+        const l1 = Math.abs(q[0] - a[0]) + Math.abs(q[1] - a[1]), l2 = Math.abs(b[0] - q[0]) + Math.abs(b[1] - q[1]);
+        const r = Math.min(R, l1 / 2, l2 / 2);
+        const ux = Math.sign(q[0] - a[0]), uy = Math.sign(q[1] - a[1]), wx = Math.sign(b[0] - q[0]), wy = Math.sign(b[1] - q[1]);
+        d += " L" + xy(q[0] - ux * r, q[1] - uy * r) + " Q" + xy(q[0], q[1]) + " " + xy(q[0] + wx * r, q[1] + wy * r);
+      } else d += " L" + xy(q[0], q[1]);
+    }
+    return d;
+  }
+
+  // Crossings between routed arrows: each arrow is a list of axis-parallel segments. A crossing is a segment
+  // along the flow meeting one across it inside both; two collinear segments that overlap count too.
+  function countCrossings(routes) {
+    const segs = [];
+    routes.forEach(function (pts, k) {
+      for (let i = 1; i < pts.length; i++) {
+        const a = pts[i - 1], b = pts[i];
+        if (a[0] === b[0] && a[1] === b[1]) continue;
+        if (a[1] === b[1]) segs.push({ k: k, h: true, c: a[1], lo: Math.min(a[0], b[0]), hi: Math.max(a[0], b[0]) });
+        else segs.push({ k: k, h: false, c: a[0], lo: Math.min(a[1], b[1]), hi: Math.max(a[1], b[1]) });
+      }
+    });
+    let n = 0;
+    for (let i = 0; i < segs.length; i++) {
+      for (let j = i + 1; j < segs.length; j++) {
+        const s = segs[i], t = segs[j];
+        if (s.k === t.k) continue;
+        if (s.h !== t.h) {
+          const h = s.h ? s : t, v = s.h ? t : s;
+          if (v.c > h.lo && v.c < h.hi && h.c > v.lo && h.c < v.hi) n++;
+        } else if (Math.abs(s.c - t.c) < 0.5 && Math.min(s.hi, t.hi) - Math.max(s.lo, t.lo) > 0.5) n++;
+      }
+    }
+    return n;
+  }
+
+  // Track order in a gap for hops {v0, v1}: going down, the lower start takes the track nearer the start;
+  // going up, the upper one; the two groups go in whichever order crosses less. Sets h.t, returns the count.
+  function orderTracks(hs) {
+    const crossings = function (order) {
+      let n = 0;
+      order.forEach(function (a, i) {
+        const lo = Math.min(a.v0, a.v1), hi = Math.max(a.v0, a.v1);
+        order.forEach(function (b, j) {
+          if (j > i && b.v0 > lo && b.v0 < hi) n++;
+          if (j < i && b.v1 > lo && b.v1 < hi) n++;
+        });
+      });
+      return n;
+    };
+    const down = hs.filter(function (h) { return h.v1 > h.v0; }).sort(function (p, q) { return (q.v0 - p.v0) || (q.v1 - p.v1); });
+    const upw = hs.filter(function (h) { return h.v1 < h.v0; }).sort(function (p, q) { return (p.v0 - q.v0) || (p.v1 - q.v1); });
+    const a = down.concat(upw), b = upw.concat(down);
+    const order = crossings(b) < crossings(a) ? b : a;
+    order.forEach(function (h, i) { h.t = i; });
+    return order.length;
+  }
+
   function renderGraph(dir) {
     $("graphwrap").classList.toggle("empty", !G.items.length);
     if (!G.items.length) {
@@ -576,12 +646,16 @@ details.item .body { padding: 6px 0 10px; }
       return;
     }
     const TB = dir === "tb";
-    const W = TB ? 156 : 168, H = 50, GX = TB ? 12 : 40, GY = TB ? 38 : 10, PX = TB ? 16 : 44, PY = TB ? 46 : 14, TAIL = 10;
-    const pos = {}, center = {};
+    // Layout runs in flow coordinates: u along the arrows, v across them; xy() turns them into screen x,y.
+    // Nodes are FL long along the flow and at least CR wide across it; a node with many arrows gets wider
+    // across, so every arrow has its own port PORT apart.
+    const FL = TB ? 50 : 168, CR = TB ? 156 : 50, NG = TB ? 14 : 12, LS = 12, PORT = 16;
+    // PRE leaves room before the first layer for conflict arcs. A gap between layers holds one track per
+    // bent arrow, TS apart and M from the layers, so it grows with the arrows; never narrower than MINGAP.
+    const PRE = 46, POST = 16, PV = 16, M = 18, TS = 12, MINGAP = TB ? 36 : 40;
+    const xy = function (u, v) { return TB ? v + "," + u : u + "," + v; };
     // Each layer holds nodes plus one narrow lane per arrow that skips that layer, so long arrows run between
-    // nodes, never under them. Order: layer 0 by group, then down / up / down passes by the mean position
-    // of neighbours in the adjacent layer, to cut crossings.
-    const NS = TB ? W : H, LS = 14, GAP = TB ? GX : GY;
+    // nodes, never under them.
     const L = cols.map(function (c) { return c.map(function (it) { return { id: it.id, it: it }; }); });
     const up = {}, dn = {}, chain = {};
     const link = function (a, b) { (dn[a] = dn[a] || []).push(b); (up[b] = up[b] || []).push(a); };
@@ -597,18 +671,21 @@ details.item .body { padding: 6px 0 10px; }
         link(prev, it.id); chain[d.id + ">" + it.id] = ids;
       });
     });
-    const sizeOf = function (x) { return x.lane ? LS : NS; };
-    const spanOf = function (layer) { return layer.reduce(function (s, x) { return s + sizeOf(x); }, 0) + GAP * Math.max(0, layer.length - 1); };
-    const maxSpan = Math.max.apply(null, L.map(spanOf));
-    const place = function (layer, li) {
-      let c = TB ? (maxSpan - spanOf(layer)) / 2 : 0;
-      layer.forEach(function (x) {
-        const s = sizeOf(x);
-        pos[x.id] = TB ? { x: PX + c, y: PY + li * (H + GY) } : { x: PX + li * (W + GX), y: PY + c };
-        center[x.id] = (TB ? PX : PY) + c + s / 2;
-        c += s + GAP;
-      });
+    const sizeOf = function (x) {
+      if (x.lane) return LS;
+      const n = Math.max((up[x.id] || []).length, (dn[x.id] || []).length);
+      return Math.max(CR, (n - 1) * PORT + 24);
     };
+    const spanOf = function (layer) { return layer.reduce(function (s, x) { return s + sizeOf(x); }, 0) + NG * Math.max(0, layer.length - 1); };
+    const maxSpan = Math.max.apply(null, L.map(spanOf));
+    const pos = {}, center = {};
+    const place = function (layer) {
+      let c = PV + (maxSpan - spanOf(layer)) / 2;
+      layer.forEach(function (x) { const s = sizeOf(x); pos[x.id] = { v: c, cr: s }; center[x.id] = c + s / 2; c += s + NG; });
+    };
+
+    // Order inside layers: layer 0 by group, then down / up / down passes by the mean position of neighbours
+    // in the adjacent layer.
     const mean = function (ids, dflt) {
       const v = (ids || []).filter(function (id) { return center[id] != null; }).map(function (id) { return center[id]; });
       return v.length ? v.reduce(function (s, x) { return s + x; }, 0) / v.length : dflt;
@@ -619,103 +696,177 @@ details.item .body { padding: 6px 0 10px; }
       layer.sort(function (a, b) { return (a.bary - b.bary) || (keyOf(a) - keyOf(b)); });
     };
     const gi = function (it) { return groupIdx[it.group] != null ? groupIdx[it.group] : 1e6; };
+    const sweep = function () {
+      L.forEach(function (layer, li) { if (li > 0) sortBy(layer, up); place(layer); });
+      for (let li = L.length - 2; li >= 0; li--) { sortBy(L[li], dn); place(L[li]); }
+      L.forEach(function (layer, li) { if (li > 0) sortBy(layer, up); place(layer); });
+    };
+    // Then fewer crossings. The order decides how many arrows between two neighbouring layers must cross:
+    // a pair crosses when its ends come in opposite orders. Each layer is improved by moving one node at a
+    // time to its best place. That gets stuck where a better order needs several nodes to move at once (a
+    // node with many inputs and all of its sources), so it restarts from shuffled orders and keeps the best.
+    // The shuffle is seeded and the number of restarts fixed, so the same data always gets the same picture;
+    // the time limit only guards very big graphs.
+    const pairs = L.map(function (layer, g) {
+      const ps = [];
+      if (g + 1 < L.length) layer.forEach(function (x) { (dn[x.id] || []).forEach(function (y) { ps.push([x.id, y]); }); });
+      return ps;
+    });
+    const at = {};
+    const index = function (layer) { layer.forEach(function (x, i) { at[x.id] = i; }); };
+    const gapCross = function (g) {
+      const ps = pairs[g]; let n = 0;
+      for (let i = 0; i < ps.length; i++) {
+        for (let j = i + 1; j < ps.length; j++) if ((at[ps[i][0]] - at[ps[j][0]]) * (at[ps[i][1]] - at[ps[j][1]]) < 0) n++;
+      }
+      return n;
+    };
+    const t0 = Date.now(), late = function () { return Date.now() - t0 > 400; };
+    const improve = function () {
+      L.forEach(index);
+      let cur = 0;
+      for (let g = 0; g + 1 < L.length; g++) cur += gapCross(g);
+      for (let better = true; better && cur > 0 && !late();) {
+        better = false;
+        L.forEach(function (layer, l) {
+          const local = function () { return (l > 0 ? gapCross(l - 1) : 0) + gapCross(l); };
+          for (let i = 0; i < layer.length; i++) {
+            const base = local(), x = layer.splice(i, 1)[0];
+            let bestJ = i, bestC = base;
+            for (let j = 0; j <= layer.length; j++) {
+              if (j === i) continue;
+              layer.splice(j, 0, x); index(layer);
+              const c = local();
+              if (c < bestC) { bestC = c; bestJ = j; }
+              layer.splice(j, 1);
+            }
+            layer.splice(bestJ, 0, x); index(layer);
+            if (bestC < base) { cur -= base - bestC; better = true; }
+          }
+        });
+      }
+      return cur;
+    };
+    let seed = 1;
+    const rnd = function () { seed = seed * 16807 % 2147483647; return seed / 2147483647; };
     L[0].sort(function (a, b) { return (gi(a.it) - gi(b.it)) || (a.it.idx - b.it.idx); });
-    L.forEach(function (layer, li) { if (li > 0) sortBy(layer, up); place(layer, li); });
-    for (let li = L.length - 2; li >= 0; li--) { sortBy(L[li], dn); place(L[li], li); }
-    L.forEach(function (layer, li) { if (li > 0) sortBy(layer, up); place(layer, li); });
-    const cross = function (id) { return center[id]; };
-    const svgW = TB ? PX * 2 + maxSpan : PX + L.length * (W + GX);
-    const svgH = TB ? PY + L.length * (H + GY) : PY * 2 + maxSpan;
-    natural = { w: svgW, h: svgH };
+    L.forEach(place); sweep();
+    let bestOrder = null, bestCross = Infinity;
+    for (let r = 0; r < 20 && bestCross > 0 && (r === 0 || !late()); r++) {
+      if (r > 0) {
+        L.forEach(function (layer) {
+          for (let i = layer.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)), x = layer[i]; layer[i] = layer[j]; layer[j] = x; }
+        });
+      }
+      const c = improve();
+      if (c < bestCross) { bestCross = c; bestOrder = L.map(function (layer) { return layer.slice(); }); }
+    }
+    bestOrder.forEach(function (layer, l) { L[l] = layer; });
+
+    const edges = [], inc = {}, out = {};
+    G.items.forEach(function (it) {
+      (it.deps || []).forEach(function (d) {
+        if (!byId[d.id]) return;
+        const e = { a: d.id, b: it.id, d: d, lanes: chain[d.id + ">" + it.id] || [], inOff: 0, outOff: 0 };
+        edges.push(e); (inc[it.id] = inc[it.id] || []).push(e); (out[d.id] = out[d.id] || []).push(e);
+      });
+    });
+
+    // Routes every arrow for the current order: ports, one track per bent hop, gap widths, layer positions.
+    // An arrow is a chain of hops, one per gap; a hop that changes v bends on its own track in the gap.
+    let U = [], gapW = [];
+    const layout = function () {
+      L.forEach(place);
+      const spread = function (list, keyFn, prop, size) {
+        list.sort(function (p, q) { return keyFn(p) - keyFn(q); });
+        const n = list.length, step = n > 1 ? Math.min(TB ? 34 : PORT, (size - 12) / (n - 1)) : 0;
+        list.forEach(function (e, i) { e[prop] = (i - (n - 1) / 2) * step; });
+      };
+      Object.keys(inc).forEach(function (id) { spread(inc[id], function (e) { return center[e.lanes.length ? e.lanes[e.lanes.length - 1] : e.a]; }, "inOff", pos[id].cr); });
+      Object.keys(out).forEach(function (id) { spread(out[id], function (e) { return center[e.lanes.length ? e.lanes[0] : e.b]; }, "outOff", pos[id].cr); });
+      const gaps = L.map(function () { return []; });
+      edges.forEach(function (e) {
+        e.pts = [{ l: depth[e.a], v: center[e.a] + e.outOff }]
+          .concat(e.lanes.map(function (lid, i) { return { l: depth[e.a] + 1 + i, v: center[lid], lane: true }; }))
+          .concat([{ l: depth[e.b], v: center[e.b] + e.inOff }]);
+        e.hops = [];
+        for (let i = 0; i + 1 < e.pts.length; i++) {
+          const h = { g: e.pts[i].l, v0: e.pts[i].v, v1: e.pts[i + 1].v, t: -1 };
+          e.hops.push(h); gaps[h.g].push(h);
+        }
+      });
+      const gapN = gaps.map(function (hs) { return orderTracks(hs.filter(function (h) { return Math.abs(h.v1 - h.v0) > 0.5; })); });
+      gapW = gapN.map(function (n) { return Math.max(MINGAP, 2 * M + (n - 1) * TS); });
+      U = [PRE];
+      for (let l = 1; l < L.length; l++) U[l] = U[l - 1] + FL + gapW[l - 1];
+      L.forEach(function (layer, l) { layer.forEach(function (x) { pos[x.id].u = U[l]; }); });
+      const trackU = function (g, t) { return U[g] + FL + (gapW[g] - (gapN[g] - 1) * TS) / 2 + t * TS; };
+      return edges.map(function (e) {
+        const pts = [[U[e.pts[0].l] + FL, e.pts[0].v]];
+        e.hops.forEach(function (h, i) {
+          const next = e.pts[i + 1];
+          if (h.t >= 0) { const tu = trackU(h.g, h.t); pts.push([tu, h.v0], [tu, h.v1]); }
+          pts.push([next.lane ? U[next.l] : U[next.l] - 1, h.v1]);
+          if (next.lane) pts.push([U[next.l] + FL, next.v]);
+        });
+        return pts;
+      });
+    };
+
+    const routes = layout();
+    box.dataset.crossings = String(countCrossings(routes)); // read by the page tests
+    const svgU = U[L.length - 1] + FL + POST, svgV = maxSpan + 2 * PV;
+    natural = TB ? { w: svgV, h: svgU } : { w: svgU, h: svgV };
 
     let svg = '<svg xmlns="http://www.w3.org/2000/svg">' +
       '<defs><marker id="am" viewBox="0 0 10 10" refX="9.5" refY="5" markerUnits="userSpaceOnUse" markerWidth="8" markerHeight="8" orient="auto"><path class="mk-met" d="M0,0L10,5L0,10z"/></marker>' +
       '<marker id="au" viewBox="0 0 10 10" refX="9.5" refY="5" markerUnits="userSpaceOnUse" markerWidth="8" markerHeight="8" orient="auto"><path class="mk-unmet" d="M0,0L10,5L0,10z"/></marker></defs>';
-    const edges = [], inc = {}, out = {};
-    G.items.forEach(function (it) {
-      (it.deps || []).forEach(function (d) {
-        if (!pos[d.id]) return;
-        const e = { a: d.id, b: it.id, d: d, it: it, lanes: chain[d.id + ">" + it.id] || [], inOff: 0, outOff: 0 };
-        edges.push(e); (inc[it.id] = inc[it.id] || []).push(e); (out[d.id] = out[d.id] || []).push(e);
-      });
+    // Each arrow is drawn over a halo in the canvas colour, so where two arrows cross the upper one cuts a gap
+    // in the lower one and they do not read as joined.
+    edges.forEach(function (e, k) {
+      const d = e.d, met = depMet(d), p = ortho(routes[k], xy, 6);
+      svg += '<path class="halo" d="' + p + '"/>' +
+        '<path class="edge ' + (met ? "met" : "unmet") + (d.kind === "part" ? " part" : "") + '" data-a="' + esc(e.a) + '" data-b="' + esc(e.b) +
+        '" marker-end="url(#' + (met ? "am" : "au") + ')" d="' + p + '"><title>' + esc(e.a + " → " + e.b + ": " + (d.note || "")) + "</title></path>";
     });
-    // Several arrows into (or out of) one node get their own ports along its side, ordered by where the next hop is,
-    // so each arrow stays visible up to its own arrowhead.
-    const spread = function (list, keyFn, prop) {
-      list.sort(function (p, q) { return keyFn(p) - keyFn(q); });
-      const n = list.length, step = n > 1 ? Math.min(TB ? 34 : 14, NS * 0.7 / (n - 1)) : 0;
-      list.forEach(function (e, i) { e[prop] = (i - (n - 1) / 2) * step; });
-    };
-    Object.keys(inc).forEach(function (id) { spread(inc[id], function (e) { return cross(e.lanes.length ? e.lanes[e.lanes.length - 1] : e.a); }, "inOff"); });
-    Object.keys(out).forEach(function (id) { spread(out[id], function (e) { return cross(e.lanes.length ? e.lanes[0] : e.b); }, "outOff"); });
-    // Path: source port, then straight across each lane, then the target port. Every hop leaves and enters along the
-    // flow direction; the last one ends with a straight tail, so the line enters the arrowhead straight.
-    const hop = function (x1, y1, x2, y2) {
-      if (TB) { const k = Math.max(12, (y2 - y1) / 2); return " C" + x1 + "," + (y1 + k) + " " + x2 + "," + (y2 - k) + " " + x2 + "," + y2; }
-      const k = Math.max(16, (x2 - x1) / 2); return " C" + (x1 + k) + "," + y1 + " " + (x2 - k) + "," + y2 + " " + x2 + "," + y2;
-    };
-    edges.forEach(function (e) {
-        const it = e.it, d = e.d, a = pos[e.a], b = pos[e.b];
-        const met = depMet(d);
-        let x, y, p;
-        if (TB) { x = a.x + W / 2 + e.outOff; y = a.y + H; } else { x = a.x + W; y = a.y + H / 2 + e.outOff; }
-        p = "M" + x + "," + y;
-        e.lanes.forEach(function (lid) {
-          const q = pos[lid], c = center[lid];
-          if (TB) { p += hop(x, y, c, q.y) + " L" + c + "," + (q.y + H); x = c; y = q.y + H; }
-          else { p += hop(x, y, q.x, c) + " L" + (q.x + W) + "," + c; x = q.x + W; y = c; }
-        });
-        if (TB) { const x2 = b.x + W / 2 + e.inOff, y2 = b.y - 1; p += hop(x, y, x2, y2 - TAIL) + " L" + x2 + "," + y2; }
-        else { const x2 = b.x - 1, y2 = b.y + H / 2 + e.inOff; p += hop(x, y, x2 - TAIL, y2) + " L" + x2 + "," + y2; }
-        svg +='<path class="edge ' + (met ? "met" : "unmet") + (d.kind === "part" ? " part" : "") + '" data-a="' + esc(d.id) + '" data-b="' + esc(it.id) +
-          '" marker-end="url(#' + (met ? "am" : "au") + ')" d="' + p + '"><title>' + esc(d.id + " → " + it.id + ": " + (d.note || "")) + "</title></path>";
-    });
+    // Conflicts: a mark on each item; the line itself shows only for the selected or hovered item.
+    const label = function (u, v) { const s = xy(u, v).split(","); return { x: +s[0] - 6, y: +s[1] + 4 }; };
     (G.conflicts || []).forEach(function (c) {
       const a = pos[c.a], b = pos[c.b]; if (!a || !b) return;
-      let p, lx, ly;
-      if (TB ? a.y !== b.y : a.x !== b.x) {
+      let p, lab;
+      if (a.u !== b.u) {
         // Different layers: a straight line between the facing sides of the two boxes, the mark in the middle.
         // Its ends sit near the ends of those sides, clear of the arrow ports in the middle.
-        const f = TB ? (a.y < b.y ? a : b) : (a.x < b.x ? a : b), g = f === a ? b : a;
-        let s, t;
-        if (TB) {
-          const d = g.x - f.x, left = d <= 0;
-          const fx = left ? 8 : W - 8;
-          const gx = Math.abs(d) < W ? fx : (left ? W - 8 : 8);
-          s = { x: f.x + fx, y: f.y + H }; t = { x: g.x + gx, y: g.y };
-        } else {
-          const d = g.y - f.y, up = d < 0;
-          const fy = up ? 5 : H - 5;
-          const gy = Math.abs(d) < H ? fy : (up ? H - 5 : 5);
-          s = { x: f.x + W, y: f.y + fy }; t = { x: g.x, y: g.y + gy };
-        }
-        p = "M" + s.x + "," + s.y + " L" + t.x + "," + t.y;
-        lx = (s.x + t.x) / 2 - 6; ly = (s.y + t.y) / 2 + 4;
-      } else if (TB) {
-        const x1 = a.x + W / 2, y1 = a.y, x2 = b.x + W / 2, y2 = b.y, bend = Math.min(40, PY - 6);
-        p = "M" + x1 + "," + y1 + " C" + x1 + "," + (y1 - bend) + " " + x2 + "," + (y2 - bend) + " " + x2 + "," + y2;
-        lx = (x1 + x2) / 2 - 6; ly = Math.min(y1, y2) - bend * 0.75 + 4;
+        const f = a.u < b.u ? a : b, g = f === a ? b : a, E = TB ? 8 : 5;
+        const dv = g.v - f.v, upw = dv < 0;
+        const fv = upw ? E : f.cr - E;
+        const gv = Math.abs(dv) < Math.min(f.cr, g.cr) ? Math.min(fv, g.cr - E) : (upw ? g.cr - E : E);
+        const s = { u: f.u + FL, v: f.v + fv }, t = { u: g.u, v: g.v + gv };
+        p = "M" + xy(s.u, s.v) + " L" + xy(t.u, t.v);
+        lab = label((s.u + t.u) / 2, (s.v + t.v) / 2);
       } else {
-        const x1 = a.x, y1 = a.y + H / 2, x2 = b.x, y2 = b.y + H / 2, bend = Math.min(40, PX - 6);
-        p = "M" + x1 + "," + y1 + " C" + (x1 - bend) + "," + y1 + " " + (x2 - bend) + "," + y2 + " " + x2 + "," + y2;
-        lx = Math.min(x1, x2) - bend * 0.75 - 6; ly = (y1 + y2) / 2 + 4;
+        // One layer: an arc on the near side of the layer, outside the boxes.
+        const va = a.v + a.cr / 2, vb = b.v + b.cr / 2, bend = Math.min(40, PRE - 6);
+        p = "M" + xy(a.u, va) + " C" + xy(a.u - bend, va) + " " + xy(b.u - bend, vb) + " " + xy(b.u, vb);
+        lab = label(a.u - bend * 0.75, (va + vb) / 2);
       }
-      svg += '<path class="cf" d="' + p + '"><title>' + esc(c.why) + "</title></path>";
-      svg += '<text class="cflabel" x="' + lx + '" y="' + ly + '">⚠</text>';
+      svg += '<g class="cfl" data-a="' + esc(c.a) + '" data-b="' + esc(c.b) + '"><path class="cf" d="' + p + '"><title>' + esc(c.why) + "</title></path>" +
+        '<text class="cflabel" x="' + lab.x + '" y="' + lab.y + '">⚠</text></g>';
     });
     G.items.forEach(function (it) {
-      const p = pos[it.id];
-      svg += '<g class="node st-' + it.state + '" data-id="' + esc(it.id) + '" transform="translate(' + p.x + "," + p.y + ')">' +
+      const p = pos[it.id], w = TB ? p.cr : FL, h = TB ? FL : p.cr, cf = conflictsOf(it.id).length;
+      svg += '<g class="node st-' + it.state + '" data-id="' + esc(it.id) + '" transform="translate(' + xy(p.u, p.v) + ')">' +
         "<title>" + esc(it.id + " · " + it.title + " — " + tr.state[it.state]) + "</title>" +
-        '<rect class="box" width="' + W + '" height="' + H + '" rx="8"/><rect class="tint" width="' + W + '" height="' + H + '" rx="8"/>' +
-        '<text class="nid" x="10" y="16">' + esc(it.id) + "</text>" +
-        '<text class="nmeta" x="' + (W - 8) + '" y="15" text-anchor="end">' + esc([it.group, it.session].filter(Boolean).join(" · ")) + "</text>" +
+        '<rect class="box" width="' + w + '" height="' + h + '" rx="8"/><rect class="tint" width="' + w + '" height="' + h + '" rx="8"/>' +
+        '<text class="nid" x="10" y="16">' + esc(it.id) +
+        (cf ? '<tspan class="cfmark" dx="5">⚠' + (cf > 1 ? cf : "") + "</tspan>" : "") + "</text>" +
+        '<text class="nmeta" x="' + (w - 8) + '" y="15" text-anchor="end">' + esc([it.group, it.session].filter(Boolean).join(" · ")) + "</text>" +
         '<text class="ntitle" x="10" y="31">' + esc(trunc(it.title, TB ? 23 : 25)) + "</text>";
       STAGES.forEach(function (s, i) {
         const on = it.status === "done" || i <= it.stage;
-        svg += '<circle class="sd' + (on ? " on" : "") + '" cx="' + (13 + i * 10) + '" cy="41" r="3"><title>' + esc(s) + "</title></circle>";
+        svg += '<circle class="sd' + (on ? " on" : "") + '" cx="' + (13 + i * 10) + '" cy="' + (h - 9) + '" r="3"><title>' + esc(s) + "</title></circle>";
       });
-      svg += '<text class="nmeta" x="' + (W - 8) + '" y="44" text-anchor="end">' + esc(tr.state[it.state]) + "</text></g>";
+      svg += '<text class="nmeta" x="' + (w - 8) + '" y="' + (h - 6) + '" text-anchor="end">' + esc(tr.state[it.state]) + "</text></g>";
     });
     svg += "</svg>";
     box.innerHTML = svg;
@@ -776,24 +927,39 @@ details.item .body { padding: 6px 0 10px; }
     const it = byId[id]; if (!it) return;
     view.sel = id;
     $("detail").innerHTML = detailHtml(it);
-    const near = {}; near[id] = true;
-    (it.deps || []).forEach(function (d) { near[d.id] = true; });
-    (dependents[id] || []).forEach(function (r) { near[r.id] = true; });
-    conflictsOf(id).forEach(function (c) { near[c.a] = true; near[c.b] = true; });
-    document.querySelectorAll(".node").forEach(function (n) {
-      n.classList.toggle("sel", n.dataset.id === id);
-      n.classList.toggle("dim", !near[n.dataset.id]);
-    });
-    document.querySelectorAll(".edge").forEach(function (e) { e.classList.toggle("dim", e.dataset.a !== id && e.dataset.b !== id); });
+    highlight(id);
     try { history.replaceState(null, "", "#" + encodeURIComponent(id)); } catch (e) { }
   }
   function clearSelection() {
     view.sel = null;
     $("detail").innerHTML = placeholder();
-    document.querySelectorAll(".node").forEach(function (n) { n.classList.remove("sel", "dim"); });
-    document.querySelectorAll(".edge").forEach(function (e) { e.classList.remove("dim"); });
+    highlight(null);
     try { history.replaceState(null, "", location.pathname + location.search); } catch (e) { }
   }
+  // The links of one item (the selected or the hovered one): its dependencies, dependents and conflicts stay
+  // bright and its conflict lines show; everything else is dimmed. null: nothing dimmed, no conflict lines.
+  function highlight(id) {
+    const it = id ? byId[id] : null, near = {};
+    if (it) {
+      near[id] = true;
+      (it.deps || []).forEach(function (d) { near[d.id] = true; });
+      (dependents[id] || []).forEach(function (r) { near[r.id] = true; });
+      conflictsOf(id).forEach(function (c) { near[c.a] = true; near[c.b] = true; });
+    }
+    const mine = function (e) { return !!it && (e.dataset.a === id || e.dataset.b === id); };
+    box.querySelectorAll(".node").forEach(function (n) {
+      n.classList.toggle("sel", n.dataset.id === view.sel);
+      n.classList.toggle("dim", !!it && !near[n.dataset.id]);
+    });
+    box.querySelectorAll(".edge").forEach(function (e) { e.classList.toggle("dim", !!it && !mine(e)); e.classList.toggle("hl", mine(e)); });
+    box.querySelectorAll(".cfl").forEach(function (g) { g.classList.toggle("on", mine(g)); });
+  }
+  box.addEventListener("mouseover", function (e) {
+    if (drag) return;
+    const n = e.target.closest(".node");
+    highlight(n ? n.dataset.id : view.sel);
+  });
+  box.addEventListener("mouseleave", function () { highlight(view.sel); });
   // After a redraw: select the same item again; drop the selection only if the item is gone from the data.
   function applySelection() {
     if (view.sel && byId[view.sel]) select(view.sel);
