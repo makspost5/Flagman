@@ -529,7 +529,9 @@ details.item .body { padding: 6px 0 10px; }
       return s.queue.slice(0, pos).some(function (id) { return byId[id] && byId[id].state !== "done"; });
     });
     if (queued.length) hints.push(tr.queued(queued.map(function (it) { return chip(it.id) + '<span class="muted">(' + esc(it.session) + ")</span>"; }).join(" ")));
-    (G.conflicts || []).forEach(function (c) { hints.push('<span class="no">⚠</span> ' + tr.conflict(chip(c.a), chip(c.b), esc(c.why))); });
+    // A conflict matters only while neither item is done.
+    const live = function (id) { return byId[id] && byId[id].state !== "done"; };
+    (G.conflicts || []).filter(function (c) { return live(c.a) && live(c.b); }).forEach(function (c) { hints.push('<span class="no">⚠</span> ' + tr.conflict(chip(c.a), chip(c.b), esc(c.why))); });
     const blocked = G.items.filter(function (it) { return it.state === "blocked"; });
     if (blocked.length) hints.push("<b>" + esc(tr.waitOthers) + "</b> " + blocked.map(function (it) {
       const miss = (it.deps || []).filter(function (d) { return d.kind !== "part" && !depMet(d); });

@@ -241,6 +241,17 @@ class PageTests(unittest.TestCase):
         other = self._open_graph(g, "?lang=en#1")
         self.assertIsNone(other.first("g", **{"class": "cfl on"}))
 
+    def test_page_conflict_hint_only_while_both_items_are_open(self):
+        g = make_graph()
+        g["conflicts"] = [{"a": "3", "b": "2", "why": "both edit one file"}]
+        self.assertIn("both edit one file", self._open_graph(g, "?lang=en").text)
+        g["items"][2]["status"] = "done"  # one side done: nothing left to coordinate
+        dom = self._open_graph(g, "?lang=en")
+        self.assertEqual(dom.err_text(), "")
+        self.assertNotIn("should not run without an agreement", dom.text)
+        g["items"][1]["status"] = "done"  # both done
+        self.assertNotIn("should not run without an agreement", self._open_graph(g, "?lang=en").text)
+
     def test_page_states(self):
         nodes = self._open_graph(make_graph()).nodes()
         self.assertIn("st-ready", nodes["3"])
