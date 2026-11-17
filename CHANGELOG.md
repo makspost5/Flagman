@@ -5,7 +5,7 @@ All notable changes to Flagman are listed here. The format follows
 [Semantic Versioning](https://semver.org/): what stays stable within 1.x is under
 [Compatibility](README.md#compatibility) in the README.
 
-## [1.0.0] - Unreleased
+## [1.0.0] - 2026-11-17
 
 The first public release. Earlier builds were published as 0.2.0 without tags; this entry
 covers everything since then. Graphs made with 0.2.0 open in 1.0.0 without changes.
@@ -50,9 +50,12 @@ covers everything since then. Graphs made with 0.2.0 open in 1.0.0 without chang
 
 - On Windows `fm.cmd` skips the Microsoft Store `python` alias and any Python older than
   3.9, and says where to get Python when none fits (#18).
+- The "Waiting on you" hint on the page uses the right plural ("in 1 session", RU forms for
+  21, 31, ...) and lists items without a session after "no session:" (#36).
 - The page copy in a task folder no longer goes stale after a plugin update: every `fm`
   change that writes the graph replaces a `taskgraph.html` that differs from the plugin's
   page. Before, it kept the old page until `fm open` ran again (#44).
+- On the page, a conflict hint goes away once either of its two items is done (#43).
 
 ## 0.2.0
 

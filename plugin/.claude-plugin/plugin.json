@@ -1,6 +1,6 @@
 {
   "name": "flagman",
-  "version": "0.2.0",
+  "version": "1.0.0",
   "license": "MIT",
   "description": "A live map of a big task: items with stages and statuses, updated by the fm command and shown in a local web page.",
   "userConfig": {
