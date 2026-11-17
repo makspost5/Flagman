@@ -19,7 +19,10 @@ class GraphError(Exception):
     """Invalid graph file or invalid user input."""
 
 
-def new_graph(key: str, title: str, lang: str = "ru") -> dict:
+DEFAULT_LANG = "en"
+
+
+def new_graph(key: str, title: str, lang: str = DEFAULT_LANG) -> dict:
     return {
         "version": 1,
         "lang": lang,

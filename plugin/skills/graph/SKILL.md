@@ -12,7 +12,7 @@ Command: `fm` (on PATH in Bash and PowerShell; on Windows PowerShell runs `bin/f
 - `fm TASK show` prints a short summary.
 
 **Architect** (structure, in this order):
-- `fm TASK init "Title" lang=en`; `fm TASK group G title=Name estimate="2 days"`
+- `fm TASK init "Title" lang='${user_config.lang}'` (a different language only if the user asks); `fm TASK group G title=Name estimate="2 days"`
 - `fm TASK session 01 name=api dir=sessions/01-api`
 - `fm TASK add A1 "Title" group=G session=01`; `fm TASK add B1 "Title" group=G session=01`; `fm TASK add A2 "Title" group=G session=01 after=A1,B1@code`
 - `fm TASK session 01 queue=A1,A2` (after the items exist)

@@ -8,6 +8,11 @@
       "type": "string",
       "title": "Tasks folder",
       "description": "Where task folders live; empty = found from the current folder"
+    },
+    "lang": {
+      "type": "string",
+      "title": "Graph language",
+      "description": "Language of new graphs: en or ru; empty = en"
     }
   }
 }
