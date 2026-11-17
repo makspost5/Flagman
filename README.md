@@ -217,10 +217,26 @@ A session has no stored state: `fm show` and the page derive it from the session
 `doing`, all done → `done`, any in review → `review`, otherwise `todo`. A `state` field
 written by older versions is ignored. `stages`
 must hold at least 2 unique, non-empty names. Ids are strings; `import` converts numeric ids
-to strings, stage names (in `items[].stage` and `deps[].stage`) to indexes, and gives a
-session without `state` the state `todo`. Run `fm TASK check` after importing a hand-made file.
+to strings and stage names (in `items[].stage` and `deps[].stage`) to indexes, drops a
+session `state`, and sets a missing `version` to 1. Run `fm TASK check` after importing a
+hand-made file.
 
 </details>
+
+## Compatibility
+
+Graphs outlive plugin updates. Within 1.x:
+
+- **Data:** `taskgraph.js` with `"version": 1` stays readable and writable by every 1.x
+  release. New fields may appear, and they are optional: an older graph needs no change.
+- **Commands:** the `fm` commands and `key=value` arguments listed under [Commands](#commands),
+  and the settings under [Configuration](#configuration), keep working. New ones may be added.
+- **Breaking changes** come only in 2.0, with a migration path. `fm TASK check` names what to
+  change; a graph in a newer format than your `fm` reads is reported and left untouched
+  (`format version 2 is newer than this fm reads (1); update the plugin`).
+
+Not covered: the page's HTML, CSS and layout, the wording of the hook reminder and of `fm show`
+output, and anything under `plugin/scripts/` used directly rather than through `fm`.
 
 ## Contributing
 

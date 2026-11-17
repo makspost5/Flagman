@@ -15,6 +15,9 @@ MAX_SUMMARY_LINES = 15
 MAX_IDS_PER_LINE = 10
 
 
+VERSION = 1  # taskgraph.js format; 1.x releases read it, new fields stay optional
+
+
 class GraphError(Exception):
     """Invalid graph file or invalid user input."""
 
@@ -24,7 +27,7 @@ DEFAULT_LANG = "en"
 
 def new_graph(key: str, title: str, lang: str = DEFAULT_LANG) -> dict:
     return {
-        "version": 1,
+        "version": VERSION,
         "lang": lang,
         "task": {"key": key, "title": title, "links": [], "due": None,
                  "updated": None, "rev": 0},
@@ -97,6 +100,14 @@ def _is_id(value) -> bool:
 
 def validate(graph: dict) -> list[str]:
     problems: list[str] = []
+    version = graph.get("version")
+    is_int = isinstance(version, int) and not isinstance(version, bool)
+    if not (is_int and version == VERSION):
+        if is_int and version > VERSION:
+            problems.append("format version %d is newer than this fm reads (%d); "
+                            "update the plugin" % (version, VERSION))
+        else:
+            problems.append("unknown format version %r (expected %d)" % (version, VERSION))
     lang = graph.get("lang")
     if lang not in LANGS:
         problems.append("unknown lang '%s' (expected one of %s)" % (lang, ", ".join(LANGS)))
@@ -209,8 +220,9 @@ def stringify_ids(graph: dict) -> None:
 
 def normalize_import(graph: dict) -> None:
     """Fill in what imported JSON may leave out, in place: stage names in
-    items[].stage and deps[].stage become indexes, a missing session state
-    becomes 'todo'. Values that do not resolve are left for validate()."""
+    items[].stage and deps[].stage become indexes, a missing version is the
+    current one, a session `state` (no longer
+    stored) is dropped. Values that do not resolve are left for validate()."""
     def stage(value):
         if isinstance(value, str):
             try:
@@ -219,6 +231,7 @@ def normalize_import(graph: dict) -> None:
                 pass
         return value
 
+    graph.setdefault("version", VERSION)
     for it in graph.get("items") or []:
         if not isinstance(it, dict):
             continue
@@ -228,8 +241,8 @@ def normalize_import(graph: dict) -> None:
             if isinstance(d, dict) and d.get("stage") is not None:
                 d["stage"] = stage(d["stage"])
     for s in graph.get("sessions") or []:
-        if isinstance(s, dict) and s.get("state") is None:
-            s["state"] = "todo"
+        if isinstance(s, dict):
+            s.pop("state", None)
 
 
 def parse_stage(graph: dict, value: str) -> int:

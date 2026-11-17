@@ -27,6 +27,15 @@ class ModelTests(unittest.TestCase):
     def test_validate_ok(self):
         self.assertEqual(model.validate(make_graph()), [])
 
+    def test_validate_format_version(self):
+        g = make_graph()
+        g["version"] = 2
+        self.assertEqual(model.validate(g),
+                         ["format version 2 is newer than this fm reads (1); update the plugin"])
+        for bad in (None, 0, "1", True):
+            g["version"] = bad
+            self.assertTrue(any("unknown format version" in p for p in model.validate(g)), bad)
+
     def test_validate_stages_required(self):
         for bad in (None, [], ["plan"], ["a", "a"], ["a", ""], ["a", 3], "ab"):
             g = make_graph()
