@@ -22,6 +22,9 @@ covers everything since then. Graphs made with 0.2.0 open in 1.0.0 without chang
   globs; default `status.md,plan.md` (#5).
 - The page shows the number of items waiting on you in the tab title and on the favicon (#6).
 - `fm show` prints a sessions line.
+- Change history: every `fm` change is logged in `taskgraph.js` with its rev, time and
+  message (the last 100). `fm TASK log [n=20]` prints the last ones, and the page lists them
+  in a collapsible "Recent changes" block (#9).
 - `import` takes stage names as well as indexes in `items[].stage` and `deps[].stage`, and
   imports a session without a state as `todo` (#16).
 - [Live demo](https://makspost5.github.io/Flagman/) on GitHub Pages and a GIF in the README (#2).

@@ -13,6 +13,8 @@ HEADER = "// Task graph data. Written by fm (Flagman); do not edit by hand.\n"
 PREFIX = "window.TASKGRAPH = "
 MAX_SUMMARY_LINES = 15
 MAX_IDS_PER_LINE = 10
+HISTORY_MAX = 100      # entries kept in `history`; older ones are dropped
+HISTORY_MSG_MAX = 200  # characters of one entry's message
 
 
 VERSION = 1  # taskgraph.js format; 1.x releases read it, new fields stay optional
@@ -243,6 +245,31 @@ def normalize_import(graph: dict) -> None:
     for s in graph.get("sessions") or []:
         if isinstance(s, dict):
             s.pop("state", None)
+
+
+def history(graph: dict) -> list[dict]:
+    """The well-formed entries of `history`, oldest first; a missing or hand-broken one is empty."""
+    rows = graph.get("history")
+    if not isinstance(rows, list):
+        return []
+    return [h for h in rows if isinstance(h, dict) and isinstance(h.get("msg"), str)]
+
+
+def add_history(graph: dict, rev: int, at: str, msg: str) -> None:
+    """Append one update to `history`, keeping the last HISTORY_MAX entries."""
+    if len(msg) > HISTORY_MSG_MAX:
+        msg = msg[:HISTORY_MSG_MAX - 1] + "…"
+    rows = history(graph)
+    rows.append({"rev": rev, "at": at, "msg": msg})
+    graph["history"] = rows[-HISTORY_MAX:]
+
+
+def history_lines(graph: dict, n: int) -> list[str]:
+    rows = history(graph)[-n:]
+    if not rows:
+        return ["no history yet: it starts with the next change"]
+    return ["rev %s  %s  %s" % (h.get("rev", "?"), str(h.get("at") or "").replace("T", " "),
+                                h["msg"]) for h in rows]
 
 
 def parse_stage(graph: dict, value: str) -> int:

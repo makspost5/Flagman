@@ -28,6 +28,7 @@ usage: fm [--root DIR] TASK COMMAND [ARGS]   (arguments are key=value)
   session ID [name= dir= note= queue=a,b,c]
   conflict A B WHY      add;  conflict A B -   remove
   show | check
+  log [n=20]              the last changes, oldest first
   open [--no-browser]     copy the page next to taskgraph.js and open it
 """
 
@@ -170,6 +171,7 @@ def _cmd_import(folder: Path, args: list[str]):
     has_graph = (folder / store.FILE).exists()
     old = store.load(folder) if has_graph else {}
     rev = int((old.get("task") or {}).get("rev") or 0)
+    past = model.history(old) if has_graph else None  # the history goes on across an import
     task = new.get("task")
     if task is not None and not isinstance(task, dict):
         raise GraphError("%s: 'task' is not an object" % pos[0])
@@ -180,6 +182,8 @@ def _cmd_import(folder: Path, args: list[str]):
         model.stringify_ids(graph)
         model.normalize_import(graph)
         graph.setdefault("task", {})["rev"] = rev
+        if past is not None:
+            graph["history"] = past
         return "imported %d items" % len(graph.get("items") or [])
 
     try:
@@ -400,7 +404,7 @@ _UPDATE_COMMANDS = {"import": _cmd_import, "set": _cmd_set, "add": _cmd_add,
                     "session": _cmd_session, "conflict": _cmd_conflict,
                     **{n: (lambda f, a, n=n: _shortcut(n, f, a))
                        for n in ("start", "done", "ask", "next")}}
-_COMMANDS = {"init", "show", "check", "open", *_UPDATE_COMMANDS}
+_COMMANDS = {"init", "show", "check", "log", "open", *_UPDATE_COMMANDS}
 
 
 PAGE_TEMPLATE = Path(__file__).resolve().parent.parent.parent / "page" / "taskgraph.html"
@@ -473,6 +477,13 @@ def _run(argv: list[str], cwd: str, out, err) -> int:
     if command == "show":
         _parse_args(rest, set(), max_pos=0, cmd="show")
         out.write("\n".join(model.summary_lines(store.load(folder))) + "\n")
+        return 0
+    if command == "log":
+        _, o = _parse_args(rest, {"n"}, max_pos=0, cmd="log")
+        n = _one(o, "n")
+        if n is not None and not (n.isdigit() and int(n) > 0):
+            raise UsageError("n must be a positive number", usage=False)
+        out.write("\n".join(model.history_lines(store.load(folder), int(n or 20))) + "\n")
         return 0
     if command == "check":
         _parse_args(rest, set(), max_pos=0, cmd="check")

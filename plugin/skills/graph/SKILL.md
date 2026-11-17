@@ -9,7 +9,7 @@ Command: `fm` (on PATH in Bash and PowerShell; on Windows PowerShell runs `bin/f
 - `fm TASK start ID` began work; `fm TASK next ID` finished the next stage (status doing; done after the last stage; `next ID status=review` when it now waits on other people); `fm TASK done ID` finished; `fm TASK ask ID "what you need from the user"` waits on the user. Add `summary="..."` to any of them.
 - Full control: `fm TASK set ID stage=code status=doing` (stages: plan, code, review, PR, merged, done; or the graph's own; statuses: todo, doing, wait-me, review, done; `review` = finished on our side, waiting for other people: code review, merge). `stage` is the last stage FINISHED: code written → `stage=code`; coding just started → keep the previous stage, `status=doing`. For an item with several parts, the stage all parts have finished.
 - `fm TASK set ID summary="one line of progress"`
-- `fm TASK show` prints a short summary.
+- `fm TASK show` prints a short summary; `fm TASK log` the last changes (`n=50` for more).
 
 **Architect** (structure, in this order):
 - `fm TASK init "Title" lang='${user_config.lang}'` (a different language only if the user asks); `fm TASK group G title=Name estimate="2 days"`

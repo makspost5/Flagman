@@ -58,6 +58,8 @@ h1 { font-size: 16px; margin: 0; }
 .card[open] > summary { margin-bottom: 4px; }
 .hint { margin: 0; padding-left: 16px; }
 .hint li { margin: 2px 0; }
+.changes { margin: 0 0 8px; } .changes ol { margin: 0; padding: 0; list-style: none; }
+.changes li { margin: 2px 0; } .changes .when { font-variant-numeric: tabular-nums; margin-right: 6px; }
 .chip { display: inline-block; padding: 0 6px; border-radius: 8px; font-size: 11px; font-weight: 600; cursor: pointer;
   border: 1px solid var(--line); background: var(--soft); margin: 0 1px; line-height: 16px; }
 .sessions { display: grid; gap: 3px; }
@@ -158,6 +160,7 @@ details.item .body { padding: 6px 0 10px; }
     <details class="card" open><summary data-t="parallel"></summary><ul class="hint" id="hints"></ul></details>
     <details class="card" open><summary data-t="sessions"></summary><div class="sessions" id="sessions"></div></details>
   </div>
+  <details class="card changes" id="changes" hidden><summary data-t="changes"></summary><ol id="changeList"></ol></details>
   <div class="tabs">
     <button data-tab="graph" data-t="tabGraph"></button>
     <button data-tab="list" data-t="tabList"></button>
@@ -200,7 +203,7 @@ details.item .body { padding: 6px 0 10px; }
         return min < 60 ? min + " мин назад" : min < 1440 ? Math.floor(min / 60) + " ч назад" : Math.floor(min / 1440) + " дн назад";
       },
       info: "«Можно начать» и «Ждёт других» страница считает сама по зависимостям.",
-      parallel: "Что можно вести параллельно", sessions: "Сессии",
+      parallel: "Что можно вести параллельно", sessions: "Сессии", changes: "Последние изменения",
       tabGraph: "Граф", tabList: "Список по статусам",
       dirLr: "→ Слева направо", dirLrTip: "Зависимости слева направо",
       dirTb: "↓ Сверху вниз", dirTbTip: "Зависимости сверху вниз",
@@ -246,7 +249,7 @@ details.item .body { padding: 6px 0 10px; }
         return min < 60 ? min + " min ago" : min < 1440 ? Math.floor(min / 60) + " h ago" : Math.floor(min / 1440) + " d ago";
       },
       info: "The page works out “Ready to start” and “Waiting on others” from the dependencies.",
-      parallel: "What can run in parallel", sessions: "Sessions",
+      parallel: "What can run in parallel", sessions: "Sessions", changes: "Recent changes",
       tabGraph: "Graph", tabList: "List by status",
       dirLr: "→ Left to right", dirLrTip: "Dependencies left to right",
       dirTb: "↓ Top to bottom", dirTbTip: "Dependencies top to bottom",
@@ -479,6 +482,7 @@ details.item .body { padding: 6px 0 10px; }
     }).join("");
     $("hints").innerHTML = hintsHtml().map(function (h) { return "<li>" + h + "</li>"; }).join("");
     $("sessions").innerHTML = sessionsHtml();
+    renderChanges();
     listEl.innerHTML = listHtml();
     listEl.querySelectorAll("details.item").forEach(function (d) { if (keep.open[d.dataset.item]) d.open = true; });
     renderGraph(view.dir);
@@ -504,6 +508,28 @@ details.item .body { padding: 6px 0 10px; }
     parts.push('<span title="' + esc(tr.info) + '">ⓘ</span>');
     $("sub").innerHTML = parts.join(" · ");
   }
+
+  // Recent changes: the last `history` entries that fm writes, newest first. The block stays hidden for a graph
+  // made before fm kept a history; whether it is open is remembered in the browser.
+  const CHANGES_SHOWN = 15;
+  function renderChanges() {
+    const rows = (Array.isArray(G.history) ? G.history : []).filter(function (h) { return h && typeof h.msg === "string"; });
+    $("changes").hidden = !rows.length;
+    const today = new Date(), pad = function (n) { return (n < 10 ? "0" : "") + n; };
+    const todayKey = today.getFullYear() + "-" + pad(today.getMonth() + 1) + "-" + pad(today.getDate());
+    $("changeList").innerHTML = rows.slice(-CHANGES_SHOWN).reverse().map(function (h) {
+      const m = /^(\d{4}-\d\d-\d\d)[T ](\d\d:\d\d)/.exec(h.at || "");
+      const when = m ? (m[1] === todayKey ? "" : m[1].slice(5) + " ") + m[2] : "";
+      // "start P2 status=doing": the item id after the command word becomes a chip that selects the item
+      const words = h.msg.split(" ");
+      const msg = words.length > 1 && byId[words[1]]
+        ? esc(words[0]) + " " + chip(words[1]) + " " + esc(words.slice(2).join(" ")) : esc(h.msg);
+      return '<li><span class="when muted">' + esc(when) + "</span>" + msg +
+        (h.rev != null ? ' <span class="muted">rev ' + esc(h.rev) + "</span>" : "") + "</li>";
+    }).join("");
+  }
+  $("changes").open = store.get("fm-changes") === "1";
+  $("changes").addEventListener("toggle", function () { store.set("fm-changes", $("changes").open ? "1" : "0"); });
 
   // Hints: what can run in parallel
   function hintsHtml() {
