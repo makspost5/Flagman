@@ -67,8 +67,10 @@ class PostToolTests(HookCase):
         self.assertIn("2 code/wait-me", text)
         self.assertIn("4 -/todo", text)
         self.assertIn(TG, text)
-        self.assertIn(str(self.task), text)
-        self.assertLessEqual(len(text), 600 + len(str(self.task)))
+        # the hook prints the resolved folder (no 8.3 short names, no symlinks)
+        task = str(self.task.resolve())
+        self.assertIn(task, text)
+        self.assertLessEqual(len(text), 600 + len(task))
 
     def test_post_tool_session_reminder_lists_review(self):
         self.assertIn("todo|doing|wait-me|review|done", self.post(self.sess_file))
