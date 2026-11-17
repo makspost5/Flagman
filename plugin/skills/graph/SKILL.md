@@ -6,8 +6,8 @@ description: "Граф задачи: заведи граф, обнови гра�
 Command: `fm` (on PATH in Bash and PowerShell; on Windows PowerShell runs `bin/fm.cmd`). Never prefix it with `bash` in PowerShell (that is WSL there). If `fm` is not found: Bash `bash "${CLAUDE_PLUGIN_ROOT}/bin/fm"`, PowerShell `& "${CLAUDE_PLUGIN_ROOT}/bin/fm.cmd"`. Form: `fm TASK COMMAND [key=value ...]`; TASK is the folder name or path. For `init` and `import` it is an existing folder (path, or a name found by lookup). If not found, add `--root '${user_config.tasks_dir}'` first. Never read or edit `taskgraph.js`; use `show`.
 
 **Worker session** (changes only its own items):
-- `fm TASK set ID stage=code status=doing` (stages: plan, code, review, PR, merged, done; or the graph's own; statuses: todo, doing, wait-me, review, done; `review` = finished on our side, waiting for other people: code review, merge). `stage` is the last stage FINISHED: code written → `stage=code`; coding just started → keep the previous stage, `status=doing`. For an item with several parts, the stage all parts have finished.
-- `fm TASK set ID status=wait-me wait="what you need from the user"`
+- `fm TASK start ID` began work; `fm TASK next ID` finished the next stage (status doing; done after the last stage; `next ID status=review` when it now waits on other people); `fm TASK done ID` finished; `fm TASK ask ID "what you need from the user"` waits on the user. Add `summary="..."` to any of them.
+- Full control: `fm TASK set ID stage=code status=doing` (stages: plan, code, review, PR, merged, done; or the graph's own; statuses: todo, doing, wait-me, review, done; `review` = finished on our side, waiting for other people: code review, merge). `stage` is the last stage FINISHED: code written → `stage=code`; coding just started → keep the previous stage, `status=doing`. For an item with several parts, the stage all parts have finished.
 - `fm TASK set ID summary="one line of progress"`
 - `fm TASK show` prints a short summary.
 
@@ -19,6 +19,6 @@ Command: `fm` (on PATH in Bash and PowerShell; on Windows PowerShell runs `bin/f
 - `fm TASK dep A2 +B1@review -A1`; `fm TASK conflict A2 B1 "both edit the same file"`; `fm TASK add C1 "Title"`; `fm TASK rm C1` (refused while another item, a queue or a conflict refers to it)
 - `fm TASK check` validates; `fm TASK open` copies and opens the page.
 
-**Graph for a running task:** build one JSON from its plan/status, run `fm TASK import FILE.json` (creates the graph if the folder has none), then `fm TASK check`. Minimal JSON: `{"version":1,"lang":"en","task":{"key":"K","title":"T"},"stages":["plan","code","done"],"items":[{"id":"A1","title":"first","stage":-1,"status":"todo"},{"id":"A2","title":"second","stage":-1,"status":"todo","deps":[{"id":"A1"}]}]}`. `stage` is an index into stages (-1 = not started). Put each session's items and its `set` line into that session's prompt.
+**Graph for a running task:** build one JSON from its plan/status, run `fm TASK import FILE.json` (creates the graph if the folder has none), then `fm TASK check`. Minimal JSON: `{"version":1,"lang":"en","task":{"key":"K","title":"T"},"stages":["plan","code","done"],"items":[{"id":"A1","title":"first","stage":-1,"status":"todo"},{"id":"A2","title":"second","stage":-1,"status":"todo","deps":[{"id":"A1"}]}]}`. `stage` is an index into stages (-1 = not started). Put each session's items and its `start` / `next` / `done` / `ask` lines into that session's prompt.
 
 Answer the user in their language.
