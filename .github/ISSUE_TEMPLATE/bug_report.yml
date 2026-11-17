@@ -1,0 +1,81 @@
+name: Bug report
+description: fm, the hook or the page does something wrong
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. For a security problem, do not open an issue: see SECURITY.md.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: The commands you ran, or the request you gave the session.
+      placeholder: |
+        1. fm "my-task" init "My task"
+        2. fm "my-task" add A1 "First item"
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: fm-output
+    attributes:
+      label: fm output
+      description: The full output of the command that failed, if any.
+      render: text
+  - type: input
+    id: version
+    attributes:
+      label: Flagman version
+      description: The output of `fm --version`.
+      placeholder: flagman 0.2.0
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: OS
+      options:
+        - Windows
+        - macOS
+        - Linux
+        - Other
+    validations:
+      required: true
+  - type: dropdown
+    id: shell
+    attributes:
+      label: Shell that ran fm
+      options:
+        - Bash tool (bash, Git Bash)
+        - PowerShell tool
+        - cmd
+        - Other
+        - Not about fm
+  - type: input
+    id: python
+    attributes:
+      label: Python version
+      description: The output of `python --version` (on Windows, `py -3 --version`).
+    validations:
+      required: true
+  - type: textarea
+    id: hook-log
+    attributes:
+      label: hook-errors.log
+      description: |
+        If the hook is involved: the last lines of `hook-errors.log` in the plugin data folder
+        (`~/.flagman` if `CLAUDE_PLUGIN_DATA` is unset). Remove anything private.
+      render: text
+  - type: textarea
+    id: more
+    attributes:
+      label: Anything else
+      description: Screenshots of the page, the browser, a part of `taskgraph.js`.
