@@ -121,6 +121,17 @@ class PostToolTests(HookCase):
                 state, TG)
             self.assertTrue(text.startswith("Task graph K-1, session 02"), variant)
 
+    def test_post_tool_session_through_symlink(self):
+        # the task folder is reached through a link (macOS /var -> /private/var, a linked
+        # projects folder): the session must still be found
+        link = self.tmp / "linked"
+        try:
+            os.symlink(str(self.tmp / ".tasks"), str(link), target_is_directory=True)
+        except (OSError, NotImplementedError) as exc:
+            self.skipTest("cannot create a symlink here: %s" % exc)
+        text = self.post(link / "K-1" / "sessions" / "02-x" / "status.md")
+        self.assertTrue(text.startswith("Task graph K-1, session 02 items:"), text)
+
     def test_post_tool_session_without_dir_uses_default(self):
         g = helpers.make_graph()
         g["sessions"][1]["dir"] = ""
@@ -215,9 +226,8 @@ class ScriptTests(HookCase):
         fake.mkdir()
         marker = self.tmp / "started"
         for name in ("py", "python3", "python"):
-            f = fake / name
-            f.write_text("#!/bin/bash\ntouch '%s'\nexit 1\n" % marker.as_posix(),
-                         encoding="utf-8", newline="\n")
+            helpers.write_script(fake / name,
+                                 "#!/bin/bash\ntouch '%s'\nexit 1\n" % marker.as_posix())
         env_extra = {"PATH": fake.as_posix() + os.pathsep + os.environ["PATH"]}
         r = self.run_sh(HOOK_SH, "post-tool",
                         {"session_id": "f",
@@ -229,8 +239,7 @@ class ScriptTests(HookCase):
         fake = self.tmp / "fakebin2"
         fake.mkdir()
         for name in ("py", "python3", "python"):
-            (fake / name).write_text("#!/bin/bash\nexit 1\n", encoding="utf-8",
-                                     newline="\n")
+            helpers.write_script(fake / name, "#!/bin/bash\nexit 1\n")
         return {"PATH": fake.as_posix() + os.pathsep + os.environ["PATH"]}
 
     def test_no_python_is_silent(self):
@@ -383,13 +392,12 @@ class FilterTests(HookCase):
         self.started = self.tmp / "started3"
         self.rm_called = self.tmp / "rm3"
         for name in ("py", "python3", "python"):
-            (fake / name).write_text(
-                "#!/bin/bash\ntouch '%s'\nexit 1\n" % self.started.as_posix(),
-                encoding="utf-8", newline="\n")
+            helpers.write_script(
+                fake / name, "#!/bin/bash\ntouch '%s'\nexit 1\n" % self.started.as_posix())
         # a function shadows the external rm (BASH_ENV is read by non-interactive bash)
         rc = self.tmp / "bashenv"
-        rc.write_text("rm() { touch '%s'; command rm \"$@\"; }\n"
-                      % self.rm_called.as_posix(), encoding="utf-8", newline="\n")
+        helpers.write_script(rc, "rm() { touch '%s'; command rm \"$@\"; }\n"
+                             % self.rm_called.as_posix())
         return dict(os.environ, CLAUDE_PLUGIN_DATA=str(self.state),
                     BASH_ENV=rc.as_posix(), PATH=fake.as_posix() + os.pathsep + os.environ["PATH"])
 

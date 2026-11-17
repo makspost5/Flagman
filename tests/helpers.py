@@ -1,6 +1,7 @@
 """Shared test helpers: sys.path setup and sample graphs."""
 from __future__ import annotations
 
+import os
 import shutil
 import sys
 from pathlib import Path
@@ -58,3 +59,11 @@ def find_bash() -> str:
         if Path(cand).exists():
             return cand
     return shutil.which("bash") or "bash"
+
+
+def write_script(path: Path, text: str) -> None:
+    """Write a fake executable with LF endings and the exec bit (PATH lookup skips files
+    without it on macOS and Linux). Path.write_text(newline=) needs Python 3.10+."""
+    with open(path, "w", encoding="utf-8", newline="\n") as fh:
+        fh.write(text)
+    os.chmod(path, 0o755)

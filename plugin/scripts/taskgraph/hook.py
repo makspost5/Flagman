@@ -16,7 +16,10 @@ MAX_ITEMS = 8
 
 
 def _norm(path) -> str:
-    return os.path.normcase(os.path.abspath(str(path)))
+    # realpath, not abspath: the task folder comes from Path.resolve(), so the edited file's
+    # path must resolve the same symlinks (/var -> /private/var on macOS) and Windows 8.3
+    # short names (RUNNER~1), or the session folder never matches.
+    return os.path.normcase(os.path.realpath(str(path)))
 
 
 def _safe(name: str) -> str:
