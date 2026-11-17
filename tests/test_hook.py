@@ -72,8 +72,10 @@ class PostToolTests(HookCase):
         self.assertIn(task, text)
         self.assertLessEqual(len(text), 600 + len(task))
 
-    def test_post_tool_session_reminder_lists_review(self):
-        self.assertIn("todo|doing|wait-me|review|done", self.post(self.sess_file))
+    def test_post_tool_session_reminder_names_shortcuts(self):
+        text = self.post(self.sess_file)
+        for word in ("start|next|done <id>", 'ask <id> "', "status=review", "set <id>"):
+            self.assertIn(word, text)
 
     def test_post_tool_once_per_prompt(self):
         self.assertIsNotNone(self.post(self.sess_file))

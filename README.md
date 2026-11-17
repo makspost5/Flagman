@@ -120,7 +120,11 @@ their `.tasks/` folders, and `--root`.
 | `init TITLE [lang=en\|ru] [due=YYYY-MM-DD] [link=LABEL\|HREF]` | create `taskgraph.js`; `lang` sets the stage names, default `en` |
 | `import FILE.json` | replace the graph from a JSON file |
 | `add ID TITLE [group= session= stage= status= after=A,B summary= wait= detail= file= link=]` | add an item |
-| `set ID [stage= status= wait= summary= title= group= session=]` | change an item |
+| `start ID` | status `doing`; `start`, `next`, `done` and `ask` also take `summary=` |
+| `next ID [status=]` | the next stage is finished; status `doing`, or `done` after the last stage |
+| `done ID` | status `done`, last stage |
+| `ask ID QUESTION` | status `wait-me` with the question for you |
+| `set ID [stage= status= wait= summary= title= group= session=]` | change an item, full control |
 | `rm ID` | remove an item (refused while something refers to it) |
 | `dep ID +DEP -DEPID [note=]` | add or remove dependencies; `DEP` is `ID[@STAGE][:part]` |
 | `group ID [title= estimate=]` | create or update a group |
@@ -134,7 +138,9 @@ their `.tasks/` folders, and `--root`.
 Example:
 
 ```
-fm SHOP-1 set P2 stage=review status=wait-me wait="pick the payment provider"
+fm SHOP-1 start P2
+fm SHOP-1 next P2 summary="cart and checkout written"
+fm SHOP-1 ask P2 "pick the payment provider"
 ```
 
 `fm` is on PATH only inside Claude Code while the plugin is enabled. From your own terminal
@@ -158,12 +164,13 @@ The hook watches edits (`Edit`, `Write`, `MultiEdit`) of files named `status.md`
 When a session edits one inside a folder that has a `taskgraph.js` (found by walking up from
 the file), the hook adds a short reminder to that session's context, once per user prompt.
 If the edited path belongs to a session's `dir` in the graph, the reminder lists that
-session's items and the exact `set` command; otherwise it is a neutral reminder:
+session's items and the exact commands; otherwise it is a neutral reminder:
 
 ```
 Task graph SHOP-1, session 01 items: P2 code/doing, P3 -/todo. If a stage or status
-changed, run: fm "<task folder>" set <id> stage=<last finished stage>
-status=<todo|doing|wait-me|review|done> (add wait="<what you need from the user>" with wait-me).
+changed, run: fm "<task folder>" start|next|done <id>, or ask <id> "<what you need from
+the user>" (next = the next stage is finished; add status=review when it now waits on others;
+anything else: set <id> stage= status=).
 Otherwise ignore this.
 ```
 

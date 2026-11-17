@@ -105,6 +105,93 @@ class InitTests(CliTestCase):
         self.assertTrue(err.startswith("error:"))
 
 
+class ShortcutTests(CliTestCase):
+    def test_start(self):
+        arg = self.task()
+        code, out, err = run([arg, "start", "3"])
+        self.assertEqual((code, err), (0, ""))
+        self.assertTrue(out.startswith("ok: start 3 status=doing"), out)
+        it = self.item("3")
+        self.assertEqual((it["stage"], it["status"]), (-1, "doing"))
+
+    def test_start_clears_wait(self):
+        arg = self.task()
+        run([arg, "start", "2"])
+        it = self.item("2")
+        self.assertEqual((it["stage"], it["status"], it["wait"]), (1, "doing", ""))
+
+    def test_done(self):
+        arg = self.task()
+        self.assertEqual(run([arg, "done", "2"])[0], 0)
+        it = self.item("2")
+        self.assertEqual((it["stage"], it["status"], it["wait"]), (5, "done", ""))
+
+    def test_ask(self):
+        arg = self.task()
+        code, out, err = run([arg, "ask", "3", "pick the provider", "summary=blocked on a choice"])
+        self.assertEqual((code, err), (0, ""))
+        it = self.item("3")
+        self.assertEqual((it["status"], it["wait"], it["summary"]),
+                         ("wait-me", "pick the provider", "blocked on a choice"))
+        self.assertEqual(it["stage"], -1)
+
+    def test_ask_needs_question(self):
+        arg = self.task()
+        before = self.raw()
+        for argv in ([arg, "ask", "3"], [arg, "ask", "3", "  "]):
+            with self.subTest(argv=argv):
+                code, _, err = run(argv)
+                self.assertNotEqual(code, 0)
+                self.assertIn("error:", err)
+        self.assertEqual(self.raw(), before)
+
+    def test_next_walks_the_stages(self):
+        arg = self.task()
+        stages = model.DEFAULT_STAGES["en"]
+        for i in range(len(stages) - 1):
+            code, out, err = run([arg, "next", "3"])
+            self.assertEqual((code, err), (0, ""))
+            self.assertIn("stage=%s" % stages[i], out)
+            it = self.item("3")
+            self.assertEqual((it["stage"], it["status"]), (i, "doing"))
+        run([arg, "next", "3"])
+        it = self.item("3")
+        self.assertEqual((it["stage"], it["status"]), (len(stages) - 1, "done"))
+        code, _, err = run([arg, "next", "3"])
+        self.assertEqual(code, 1)
+        self.assertIn("already at the last stage", err)
+
+    def test_next_with_status_and_summary(self):
+        arg = self.task()
+        code, _, err = run([arg, "next", "2", "status=review", "summary=PR open"])
+        self.assertEqual((code, err), (0, ""))
+        it = self.item("2")
+        self.assertEqual((it["stage"], it["status"], it["wait"], it["summary"]),
+                         (2, "review", "", "PR open"))
+
+    def test_next_uses_the_graph_stages(self):
+        g = model.new_graph("C-1", "Custom", "en")
+        g["stages"] = ["draft", "ship"]
+        g["items"] = [{"id": "A", "title": "a", "stage": -1, "status": "todo"}]
+        self.folder = make_task(self.tmp, g)
+        code, out, _ = run([str(self.folder), "next", "A"])
+        self.assertIn("stage=draft", out)
+        self.assertEqual((self.item("A")["stage"], self.item("A")["status"]), (0, "doing"))
+        run([str(self.folder), "next", "A"])
+        self.assertEqual((self.item("A")["stage"], self.item("A")["status"]), (1, "done"))
+
+    def test_shortcut_errors(self):
+        arg = self.task()
+        before = self.raw()
+        for argv in ([arg, "start"], [arg, "start", "nope"], [arg, "done", "3", "status=todo"],
+                     [arg, "start", "3", "extra"], [arg, "next", "3", "stage=code"]):
+            with self.subTest(argv=argv):
+                code, _, err = run(argv)
+                self.assertNotEqual(code, 0)
+                self.assertIn("error:", err)
+        self.assertEqual(self.raw(), before)
+
+
 class EditTests(CliTestCase):
     def test_set_stage_status(self):
         arg = self.task()

@@ -60,15 +60,17 @@ def _items_text(graph: dict, sid: str) -> str:
 
 def _session_text(graph: dict, sid: str, task: Path, cmd: str) -> str:
     return ('Task graph %s, session %s items: %s. If a stage or status changed, run: '
-            '%s "%s" set <id> stage=<last finished stage> status=<todo|doing|wait-me|review|done> '
-            '(add wait="<what you need from the user>" with wait-me). '
+            '%s "%s" start|next|done <id>, or ask <id> "<what you need from the user>" '
+            '(next = the next stage is finished; add status=review when it now waits on others; '
+            'anything else: set <id> stage= status=). '
             'Otherwise ignore this.'
             % (graph["task"]["key"], sid, _items_text(graph, sid), cmd, task))
 
 
 def _neutral_text(graph: dict, task: Path, cmd: str) -> str:
     return ('Task graph %s exists. If an item\'s stage or status changed, run: '
-            '%s "%s" set <id> stage=<stage> status=<status>. Items, deps and '
+            '%s "%s" start|next|done <id>, or ask <id> "<question>" '
+            '(anything else: set <id> stage= status=). Items, deps and '
             'sessions belong to the architect (fm add/dep/session). '
             'Summary: %s "%s" show.'
             % (graph["task"]["key"], cmd, task, cmd, task))

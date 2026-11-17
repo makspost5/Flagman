@@ -16,6 +16,9 @@ usage: fm [--root DIR] TASK COMMAND [ARGS]   (arguments are key=value)
        fm --version
   init TITLE [lang=en|ru] [due=YYYY-MM-DD] [link=LABEL|HREF]...
   import FILE.json
+  start ID | done ID | ask ID QUESTION | next ID [status=]   [summary=] on each
+         start: status=doing; done: status=done; ask: status=wait-me with the question;
+         next: the next stage is finished, status=doing (done at the last stage)
   set ID [stage=] [status=] [wait=] [summary=] [title=] [group=] [session=]
   add ID TITLE [group= session= stage= status= after=DEP,DEP summary= wait=]
          [detail=TEXT]... [file=PATH]... [link=LABEL|HREF]...
@@ -207,6 +210,41 @@ def _cmd_set(folder: Path, args: list[str]):
     return store.update(folder, change)
 
 
+def _shortcut(name: str, folder: Path, args: list[str]):
+    """start / done / ask / next: common `set` updates without stage names or indexes."""
+    allowed = {"summary"} | ({"status"} if name == "next" else set())
+    npos = 2 if name == "ask" else 1
+    pos, o = _parse_args(args, allowed, min_pos=npos, max_pos=npos, cmd=name)
+
+    def change(graph: dict) -> str:
+        it = _find_item(graph, pos[0])
+        stage = status = wait = None
+        if name == "start":
+            status = "doing"
+        elif name == "done":
+            status = "done"
+        elif name == "ask":
+            if not pos[1].strip():
+                raise UsageError("ask needs a question", usage=False)
+            status, wait = "wait-me", pos[1]
+        else:  # next
+            cur = it.get("stage", -1)
+            cur = cur if isinstance(cur, int) else -1
+            if cur >= _last(graph):
+                raise GraphError("item '%s' is already at the last stage" % pos[0])
+            stage = graph["stages"][cur + 1]
+            status = _one(o, "status")
+            if status is None and cur + 1 < _last(graph):
+                status = "doing"
+        words = _apply_stage_status(graph, it, stage, status, wait)
+        if "summary" in o:
+            it["summary"] = o["summary"][0]
+            words.append("summary=%s" % o["summary"][0])
+        return "%s %s %s" % (name, pos[0], " ".join(words))
+
+    return store.update(folder, change)
+
+
 def _cmd_add(folder: Path, args: list[str]):
     pos, o = _parse_args(args, {"group", "session", "stage", "status", "after", "summary",
                                 "wait", "detail", "file", "link"},
@@ -358,7 +396,9 @@ def _cmd_conflict(folder: Path, args: list[str]):
 
 _UPDATE_COMMANDS = {"import": _cmd_import, "set": _cmd_set, "add": _cmd_add,
                     "rm": _cmd_rm, "dep": _cmd_dep, "group": _cmd_group,
-                    "session": _cmd_session, "conflict": _cmd_conflict}
+                    "session": _cmd_session, "conflict": _cmd_conflict,
+                    **{n: (lambda f, a, n=n: _shortcut(n, f, a))
+                       for n in ("start", "done", "ask", "next")}}
 _COMMANDS = {"init", "show", "check", "open", *_UPDATE_COMMANDS}
 
 
