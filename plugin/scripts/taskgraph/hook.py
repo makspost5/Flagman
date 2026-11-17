@@ -10,10 +10,12 @@ import sys
 import time
 from pathlib import Path
 
-from . import model, store
+from . import autograph, model, store
 
 DEFAULT_WATCH = "status.md,plan.md"
 WATCH_ENV = "CLAUDE_PLUGIN_OPTION_WATCH_FILES"  # the plugin's watch_files setting
+TASKS_DIR_ENV = "CLAUDE_PLUGIN_OPTION_TASKS_DIR"
+TODO_TOOLS = ("TodoWrite", "TaskCreate")
 MAX_ITEMS = 8
 
 
@@ -92,16 +94,83 @@ def _neutral_text(graph: dict, task: Path, cmd: str) -> str:
             % (graph["task"]["key"], cmd, task, cmd, task))
 
 
+def _auto_marker(state_dir: Path, sid: str) -> Path:
+    # not "reminded-": a new prompt must not clear it, the offer comes once per session
+    return Path(state_dir) / ("autograph-%s" % _safe(sid))
+
+
+def _bump_counter(state_dir: Path, sid: str) -> int:
+    path = Path(state_dir) / ("tasks-%s" % _safe(sid))
+    try:
+        n = int(path.read_text(encoding="utf-8") or 0) + 1
+    except (OSError, ValueError):
+        n = 1
+    path.write_text(str(n), encoding="utf-8")
+    return n
+
+
+def _folder_hint(root: str) -> str:
+    tasks_dir = os.environ.get(TASKS_DIR_ENV, "").strip()
+    if not tasks_dir or tasks_dir.startswith("${user_config."):
+        tasks_dir = str(Path(root) / ".tasks")
+    return Path(tasks_dir).resolve().as_posix() + "/<KEY>"
+
+
+def _auto_graph(payload: dict, state_dir: Path, fm_cmd: str, patterns: list[str],
+                auto: str, auto_min: int) -> str | None:
+    """The auto graph offer, or None. Only for a task without a graph nearby."""
+    if auto == "off":
+        return None
+    tool = payload.get("tool_name")
+    tool_input = payload.get("tool_input") or {}
+    sid = str(payload.get("session_id") or "")
+    cwd = payload.get("cwd") if isinstance(payload.get("cwd"), str) else ""
+    file_path = tool_input.get("file_path")
+    if tool == "TodoWrite":
+        todos = tool_input.get("todos")
+        n, source = (len(todos) if isinstance(todos, list) else 0), "todo list"
+    elif tool == "TaskCreate":
+        Path(state_dir).mkdir(parents=True, exist_ok=True)
+        n, source = _bump_counter(state_dir, sid), "task list"
+    elif isinstance(file_path, str) and file_path and autograph.is_plan_file(file_path, patterns):
+        try:
+            if os.path.getsize(file_path) > autograph.MAX_BYTES:
+                return None
+            with open(file_path, "r", encoding="utf-8", errors="replace") as fh:
+                n = autograph.count_items(fh.read())
+        except OSError:
+            return None
+        source = os.path.basename(file_path.replace("\\", "/"))
+        cwd = cwd or os.path.dirname(file_path)
+    else:
+        return None
+    if n < auto_min or not cwd or store.find_graph_upwards(cwd) is not None:
+        return None
+    marker = _auto_marker(state_dir, sid)
+    if marker.exists():
+        return None
+    Path(state_dir).mkdir(parents=True, exist_ok=True)
+    marker.write_text("", encoding="utf-8")
+    return autograph.reminder(auto, n, source, _folder_hint(cwd), fm_cmd)
+
+
 def handle_post_tool(payload: dict, state_dir: Path, fm_cmd: str,
-                     patterns: list[str] | None = None) -> str | None:
+                     patterns: list[str] | None = None, auto: str | None = None,
+                     auto_min: int | None = None) -> str | None:
     tool_input = payload.get("tool_input") or {}
     file_path = tool_input.get("file_path")
-    if not isinstance(file_path, str) or not file_path:
-        return None
-    if not is_watched(file_path, patterns if patterns is not None else watch_patterns()):
-        return None
-    task = store.find_graph_upwards(file_path)
+    if patterns is None:
+        patterns = watch_patterns()
+    task = None
+    if isinstance(file_path, str) and file_path and payload.get("tool_name") not in TODO_TOOLS:
+        if not (is_watched(file_path, patterns) or autograph.is_plan_file(file_path, patterns)):
+            return None
+        task = store.find_graph_upwards(file_path)
     if task is None:
+        return _auto_graph(payload, state_dir, fm_cmd, patterns,
+                           auto if auto is not None else autograph.mode(),
+                           auto_min if auto_min is not None else autograph.min_items())
+    if not is_watched(file_path, patterns):
         return None
     try:
         graph = store.load(task)
