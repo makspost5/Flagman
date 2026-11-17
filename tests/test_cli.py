@@ -383,6 +383,31 @@ class OpenTests(CliTestCase):
         self.assertEqual(page.read_bytes(), template.read_bytes())
         self.assertIn(str(page), out)
 
+    def test_update_refreshes_a_stale_page_copy(self):
+        # a copy left by an older plugin: the next graph update replaces it with the current page
+        self.task()
+        page = self.folder / "taskgraph.html"
+        page.write_text("<html>old page</html>", encoding="utf-8")
+        code, out, err = run([str(self.folder), "start", "3"])
+        self.assertEqual((code, err), (0, ""), out)
+        template = helpers.ROOT / "plugin" / "page" / "taskgraph.html"
+        self.assertEqual(page.read_bytes(), template.read_bytes())
+
+    def test_update_does_not_create_a_page(self):
+        # only `fm open` puts a page in the task folder
+        self.task()
+        code, out, err = run([str(self.folder), "start", "3"])
+        self.assertEqual((code, err), (0, ""), out)
+        self.assertFalse((self.folder / "taskgraph.html").exists())
+
+    def test_read_commands_leave_the_page_copy(self):
+        self.task()
+        page = self.folder / "taskgraph.html"
+        page.write_text("<html>old page</html>", encoding="utf-8")
+        for command in ("show", "check"):
+            run([str(self.folder), command])
+        self.assertEqual(page.read_text(encoding="utf-8"), "<html>old page</html>")
+
 
 class ImportCreateTests(CliTestCase):
     def test_import_creates_graph_in_empty_folder(self):

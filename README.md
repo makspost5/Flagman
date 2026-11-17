@@ -173,7 +173,9 @@ run `bash <plugin>/bin/fm`, or `<plugin>\bin\fm.cmd` on Windows.
 <summary>The page</summary>
 
 `fm open` writes `taskgraph.html` next to `taskgraph.js` and opens it from `file://`. The page
-re-reads the data every few seconds, so it follows `fm` updates. Query parameters:
+re-reads the data every few seconds, so it follows `fm` updates. After a plugin update the
+next `fm` change also replaces that `taskgraph.html` with the new page; reload the tab to
+pick it up. Query parameters:
 `?lang=ru|en`, `?dir=lr|tb`, `?tab=graph|list`, `?poll=MS` (refresh interval, at least 200).
 
 While items wait on you, the tab title starts with their count, `(2) Task map SHOP-1 · Flagman`,

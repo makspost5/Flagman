@@ -47,6 +47,9 @@ covers everything since then. Graphs made with 0.2.0 open in 1.0.0 without chang
 
 - On Windows `fm.cmd` skips the Microsoft Store `python` alias and any Python older than
   3.9, and says where to get Python when none fits (#18).
+- The page copy in a task folder no longer goes stale after a plugin update: every `fm`
+  change that writes the graph replaces a `taskgraph.html` that differs from the plugin's
+  page. Before, it kept the old page until `fm open` ran again (#44).
 
 ## 0.2.0
 

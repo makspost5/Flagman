@@ -432,6 +432,21 @@ def _cmd_open(folder: Path, args: list[str], out) -> int:
     return 0
 
 
+def _refresh_page(folder: Path) -> None:
+    """Replace a page copy left by an older plugin, so an update shows on the current page.
+
+    Only a copy `fm open` made is refreshed; a failure (the file in use, read-only) leaves the old copy
+    and never fails the update that already succeeded.
+    """
+    target = folder / "taskgraph.html"
+    try:
+        if not target.is_file() or target.read_bytes() == PAGE_TEMPLATE.read_bytes():
+            return
+        shutil.copyfile(PAGE_TEMPLATE, target)
+    except OSError:
+        pass
+
+
 def _run(argv: list[str], cwd: str, out, err) -> int:
     args = list(argv)
     root = None
@@ -469,6 +484,7 @@ def _run(argv: list[str], cwd: str, out, err) -> int:
         return 1
     handler = _cmd_init if command == "init" else _UPDATE_COMMANDS[command]
     graph, msg = handler(folder, rest)
+    _refresh_page(folder)
     out.write("ok: %s (rev %d)\n" % (msg, graph["task"]["rev"]))
     return 0
 
