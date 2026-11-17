@@ -63,6 +63,28 @@ build (and the tests). The `demo` workflow publishes `_site/` to GitHub Pages on
 After changing the page or the scenario, record the README GIF again and commit it:
 `python tools/demo_gif.py` (needs Pillow and Edge or Chrome).
 
+## Releasing
+
+1. Add what changed to `CHANGELOG.md` as you merge: each pull request that changes behavior
+   adds a line, with its issue number, to the top entry that has no date yet
+   (`## [Unreleased]`, or `## [X.Y.Z] - Unreleased` once the version is known).
+2. Pick the version by [Semantic Versioning](https://semver.org/) and the promise under
+   [Compatibility](README.md#compatibility): a fix is a patch, a new command or field a minor
+   version, a breaking change waits for 2.0.
+3. In one pull request: set `version` in `plugin/.claude-plugin/plugin.json`, give the
+   entry its heading `[X.Y.Z] - YYYY-MM-DD`, and add the `[X.Y.Z]` link at the bottom.
+4. After it is merged, tag the merge commit and publish the release with that changelog entry
+   as its notes:
+
+   ```
+   git tag -a vX.Y.Z -m "Flagman X.Y.Z"
+   git push origin vX.Y.Z
+   gh release create vX.Y.Z --title "Flagman X.Y.Z" --notes-file <the entry>
+   ```
+
+5. Check that `/plugin marketplace update flagman` on an installed copy picks up the new
+   version (`fm --version`).
+
 ## Code style
 
 - Python 3.9 or newer, standard library only. No third-party packages, at run time or in tests.

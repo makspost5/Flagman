@@ -1,7 +1,7 @@
 {
   "name": "flagman",
   "description": "Flagman: run a big task with several Claude Code sessions and see all of it at a glance.",
-  "owner": { "name": "Flagman authors" },
+  "owner": { "name": "makspost5", "url": "https://github.com/makspost5" },
   "plugins": [
     {
       "name": "flagman",
