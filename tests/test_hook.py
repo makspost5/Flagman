@@ -9,6 +9,7 @@ import sys
 import tempfile
 import time
 import unittest
+from unittest import mock
 from pathlib import Path
 
 from tests import helpers
@@ -38,6 +39,11 @@ class HookCase(unittest.TestCase):
         self.root_file.write_text("x", encoding="utf-8")
         self.state = self.tmp / "state"
         self.state.mkdir()
+        # a watch_files setting of the Claude Code session running the tests must not leak in
+        env = mock.patch.dict(os.environ)
+        env.start()
+        self.addCleanup(env.stop)
+        os.environ.pop(hook.WATCH_ENV, None)
 
     def post(self, path, sid="s1"):
         return hook.handle_post_tool(
@@ -431,6 +437,91 @@ class FilterTests(HookCase):
         (self.state / "reminded-nomark-abcd1234").write_text("", encoding="utf-8")
         self.run_hook("prompt", {"session_id": "nomark"}, env)
         self.assertTrue(self.rm_called.exists())
+
+
+class WatchFilesTests(HookCase):
+    def test_patterns(self):
+        default = ["status.md", "plan.md"]
+        for value in ("", " ", ",", " , ", "${user_config.watch_files}"):
+            with self.subTest(value=value):
+                self.assertEqual(hook.watch_patterns(value), default)
+        self.assertEqual(hook.watch_patterns(" PROGRESS.md , *.status.md,"),
+                         ["progress.md", "*.status.md"])
+        self.assertEqual(hook.watch_patterns(), default)
+        os.environ[hook.WATCH_ENV] = "notes.md"
+        self.assertEqual(hook.watch_patterns(), ["notes.md"])
+
+    def test_is_watched(self):
+        pats = hook.watch_patterns("PROGRESS.md,*.status.md")
+        for path in ("/x/PROGRESS.md", "/x/progress.md", "C:" + chr(92) + "x" + chr(92) + "Progress.MD",
+                     "/x/api.status.md"):
+            with self.subTest(path=path):
+                self.assertTrue(hook.is_watched(path, pats))
+        for path in ("/x/status.md", "/x/plan.md", "/x/PROGRESS.md.bak", "/PROGRESS.md/x.txt"):
+            with self.subTest(path=path):
+                self.assertFalse(hook.is_watched(path, pats))
+
+    def test_custom_name_reminds(self):
+        progress = self.sess_dir / "PROGRESS.md"
+        progress.write_text("x", encoding="utf-8")
+        self.assertIsNone(self.post(progress))
+        os.environ[hook.WATCH_ENV] = "PROGRESS.md"
+        text = self.post(progress, "s2")
+        self.assertTrue(text.startswith("Task graph K-1, session 02 items:"), text)
+        self.assertIsNone(self.post(self.sess_file, "s3"))
+
+
+class WatchFilesScriptTests(HookCase):
+    def run_hook(self, path, watch=None, sid="w"):
+        fake = self.tmp / "fakebin-w"
+        fake.mkdir(exist_ok=True)
+        self.started = self.tmp / "started-w"
+        for name in ("py", "python3", "python"):
+            helpers.write_script(
+                fake / name, "#!/bin/bash\ntouch '%s'\nexit 1\n" % self.started.as_posix())
+        env = dict(os.environ, CLAUDE_PLUGIN_DATA=str(self.state),
+                   PATH=fake.as_posix() + os.pathsep + os.environ["PATH"])
+        if watch is not None:
+            env[hook.WATCH_ENV] = watch
+        r = subprocess.run([helpers.find_bash(), HOOK_SH.as_posix(), "post-tool"],
+                           input=json.dumps({"session_id": sid,
+                                             "tool_input": {"file_path": path}}).encode("utf-8"),
+                           capture_output=True, env=env)
+        self.assertEqual((r.returncode, r.stdout), (0, b""))
+        hit = self.started.exists()
+        if hit:
+            self.started.unlink()
+        return hit
+
+    def test_prefilter_follows_setting(self):
+        win = "C:" + chr(92) + "x" + chr(92)
+        cases = [
+            (None, "/x/status.md", True), (None, "/x/plan.md", True),
+            (None, "/x/PROGRESS.md", False), (None, "/x/my-status.md", False),
+            ("", "/x/plan.md", True), (" , ", "/x/status.md", True),
+            ("PROGRESS.md", "/x/PROGRESS.md", True), ("PROGRESS.md", "/x/progress.md", True),
+            ("PROGRESS.md", win + "PROGRESS.md", True), ("PROGRESS.md", "/x/status.md", False),
+            ("notes.md, *.status.md", "/x/api.status.md", True),
+            ("notes.md, *.status.md", "/x/NOTES.md", True),
+            ("notes.md, *.status.md", "/x/plan.md", False),
+            ("${user_config.watch_files}", "/x/plan.md", True),
+        ]
+        for watch, path, expected in cases:
+            with self.subTest(watch=watch, path=path):
+                self.assertEqual(self.run_hook(path, watch), expected)
+
+    def test_end_to_end_custom_name(self):
+        progress = self.sess_dir / "PROGRESS.md"
+        progress.write_text("x", encoding="utf-8")
+        env = dict(os.environ, CLAUDE_PLUGIN_DATA=str(self.state))
+        env[hook.WATCH_ENV] = "PROGRESS.md"
+        r = subprocess.run([helpers.find_bash(), HOOK_SH.as_posix(), "post-tool"],
+                           input=json.dumps({"session_id": "e2e", "tool_input": {
+                               "file_path": str(progress)}}).encode("utf-8"),
+                           capture_output=True, env=env)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        out = json.loads(r.stdout.decode("utf-8"))
+        self.assertIn("session 02", out["hookSpecificOutput"]["additionalContext"])
 
 
 if __name__ == "__main__":

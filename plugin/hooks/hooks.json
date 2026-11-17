@@ -1,5 +1,5 @@
 {
-  "description": "Remind a session to update the task graph after it edits status.md or plan.md",
+  "description": "Remind a session to update the task graph after it edits a watched file (status.md, plan.md by default)",
   "hooks": {
     "PostToolUse": [{ "matcher": "Edit|Write|MultiEdit",
       "hooks": [{ "type": "command", "command": "if [ -n \"$BASH_VERSION\" ]; then . \"${CLAUDE_PLUGIN_ROOT}/scripts/hook\" post-tool; else exec bash \"${CLAUDE_PLUGIN_ROOT}/scripts/hook\" post-tool; fi", "timeout": 10 }] }],

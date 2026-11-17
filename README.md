@@ -46,7 +46,7 @@ session updates its own items with the `fm` command, and the page refreshes by i
   in the tab title and on the favicon, so a background tab tells you too.
 - **Parallel work** — what is ready to start now and what is blocked, and by what.
 - **Conflicts** — pairs of items that touch the same thing.
-- **A reminder hook** — when a session edits its `plan.md` or `status.md`, Claude is reminded
+- **A reminder hook** — when a session edits its `plan.md` or `status.md` (or the files you set), Claude is reminded
   to update the graph with the exact command.
 
 ## Try the demo
@@ -84,12 +84,13 @@ These lines make every session use the graph without being asked:
 
 ## Configuration
 
-Optional settings, asked for when the plugin is enabled. Both can stay empty.
+Optional settings, asked for when the plugin is enabled. All can stay empty.
 
 | Setting | Meaning |
 |---|---|
 | `tasks_dir` | Folder where task folders live. Empty: `fm` finds the task from the current folder. |
 | `lang` | Language of new graphs: `en` or `ru` (stage names, the page's default language). Empty: `en`. |
+| `watch_files` | Files whose edits remind a session to update the graph: comma-separated names or globs, matched against the file name without case, e.g. `PROGRESS.md,*.status.md`. Default and empty: `status.md,plan.md`. |
 
 Install the plugin at user level to have it in every session.
 
@@ -166,7 +167,8 @@ not focused.
 <details>
 <summary>The reminder hook</summary>
 
-The hook watches edits (`Edit`, `Write`, `MultiEdit`) of files named `status.md` or `plan.md`.
+The hook watches edits (`Edit`, `Write`, `MultiEdit`) of files named `status.md` or `plan.md`
+(change the list with the `watch_files` setting).
 When a session edits one inside a folder that has a `taskgraph.js` (found by walking up from
 the file), the hook adds a short reminder to that session's context, once per user prompt.
 If the edited path belongs to a session's `dir` in the graph, the reminder lists that
