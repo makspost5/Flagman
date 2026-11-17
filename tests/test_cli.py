@@ -296,6 +296,19 @@ class EditTests(CliTestCase):
         code, out, _ = run([arg, "check"])
         self.assertEqual((code, out.strip()), (0, "ok"))
 
+    def test_check_and_writes_refuse_a_newer_format(self):
+        g = make_graph()
+        g["version"] = 2
+        self.folder = make_task(self.tmp, g)
+        before = self.raw()
+        code, _, err = run([str(self.folder), "check"])
+        self.assertEqual(code, 1)
+        self.assertIn("update the plugin", err)
+        code, _, err = run([str(self.folder), "start", "3"])
+        self.assertEqual(code, 1)
+        self.assertIn("update the plugin", err)
+        self.assertEqual(self.raw(), before)
+
 
 class ErrorTests(CliTestCase):
     def test_errors(self):
@@ -506,15 +519,24 @@ class IdAndStageTests(CliTestCase):
         self.assertIn("plan, code", err)
         self.assertEqual(self.raw(), before)
 
-    def test_import_defaults_session_state(self):
+    def test_import_without_version_gets_current(self):
         arg = self.task()
         new = model.new_graph("K-1", "T", "en")
-        new["sessions"] = [{"id": "01", "name": "cli"}]
+        del new["version"]
+        code, out, err = run([arg, "import", self.write(new)])
+        self.assertEqual((code, err), (0, ""), out)
+        self.assertEqual(self.graph()["version"], model.VERSION)
+
+    def test_import_drops_session_state(self):
+        arg = self.task()
+        new = model.new_graph("K-1", "T", "en")
+        new["sessions"] = [{"id": "01", "name": "cli"},
+                           {"id": "02", "name": "old", "state": "done"}]
         new["items"] = [{"id": "A1", "title": "a", "session": "01", "stage": -1,
                          "status": "todo"}]
         code, out, err = run([arg, "import", self.write(new)])
         self.assertEqual((code, err), (0, ""), out)
-        self.assertEqual(self.graph()["sessions"][0]["state"], "todo")
+        self.assertEqual([s.get("state") for s in self.graph()["sessions"]], [None, None])
 
 
 class RobustnessTests(CliTestCase):
