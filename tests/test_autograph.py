@@ -1,6 +1,7 @@
 """Auto graph: when a task is split into many items, the hook offers a graph (#40)."""
 from __future__ import annotations
 
+import json
 import unittest
 
 from tests import helpers  # noqa: F401  (puts plugin/scripts on sys.path)
@@ -66,6 +67,14 @@ class ReminderTests(unittest.TestCase):
         self.assertIn("Ask the user", ask)
         self.assertNotIn("Ask the user", on)
         self.assertIn("Create the task graph now", on)
+
+
+class PluginJsonTests(unittest.TestCase):
+    def test_plugin_json_auto_graph_settings(self):
+        path = helpers.ROOT / "plugin" / ".claude-plugin" / "plugin.json"
+        config = json.loads(path.read_text(encoding="utf-8"))["userConfig"]
+        self.assertEqual(config["auto_graph"]["default"], "ask")
+        self.assertEqual(config["auto_graph_min"]["default"], "6")
 
 
 if __name__ == "__main__":

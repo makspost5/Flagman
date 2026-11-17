@@ -21,4 +21,6 @@ Command: `fm` (on PATH in Bash and PowerShell; on Windows PowerShell runs `bin/f
 
 **Graph for a running task:** build one JSON from its plan/status, run `fm TASK import FILE.json` (creates the graph if the folder has none), then `fm TASK check`. Minimal JSON: `{"version":1,"lang":"en","task":{"key":"K","title":"T"},"stages":["plan","code","done"],"items":[{"id":"A1","title":"first","stage":-1,"status":"todo"},{"id":"A2","title":"second","stage":-1,"status":"todo","deps":[{"id":"A1","stage":"code"}]}]}`. `stage` is a stage name or an index into stages (-1 = not started); a dependency's `stage` (optional) is the stage of that item it waits for. Put each session's items and its `start` / `next` / `done` / `ask` lines into that session's prompt.
 
+**Auto graph reminder** (the hook says a task is split into N items and has no graph): if it says to ask, ask the user in one line and stop there unless they agree. Then: pick a short upper-case KEY for the task (issue or branch name), create the folder the reminder names with that KEY, build the JSON from the plan's items (ids, titles, deps between them, sessions if the plan has them) and `fm KEY import FILE.json`, `fm KEY check`, `fm KEY open`. If the task already has a graph, use it instead.
+
 Answer the user in their language.

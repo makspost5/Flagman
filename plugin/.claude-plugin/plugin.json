@@ -19,6 +19,18 @@
       "title": "Watched files",
       "description": "Comma-separated file names or globs (e.g. PROGRESS.md,*.status.md) whose edits remind a session to update the graph",
       "default": "status.md,plan.md"
+    },
+    "auto_graph": {
+      "type": "string",
+      "title": "Auto graph",
+      "description": "When a task is split into many items and has no graph: ask = offer one, on = create it, off = only on request",
+      "default": "ask"
+    },
+    "auto_graph_min": {
+      "type": "string",
+      "title": "Auto graph threshold",
+      "description": "How many items in a plan or todo list make a task big enough for a graph",
+      "default": "6"
     }
   }
 }

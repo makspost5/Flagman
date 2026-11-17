@@ -15,6 +15,9 @@ covers everything since then. Graphs made with 0.2.0 open in 1.0.0 without chang
 - `start`, `next`, `done` and `ask` shortcut commands for the usual item moves (#10).
 - `fm --version` prints the plugin version (#17).
 - `lang` setting: the language of new graphs, `en` or `ru` (#4).
+- Auto graph: when a session splits a task into `auto_graph_min` (default 6) or more items in
+  a plan file or its todo list and no graph exists, Claude offers one (`auto_graph=ask`, the
+  default), creates it (`on`), or stays quiet (`off`) (#40).
 - `watch_files` setting: which files remind a session to update the graph, as names or
   globs; default `status.md,plan.md` (#5).
 - The page shows the number of items waiting on you in the tab title and on the favicon (#6).
