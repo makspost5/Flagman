@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# fm launcher: finds Python 3.9+ and runs scripts/fm.py with the same arguments.
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+. "$HERE/../scripts/pick-python.sh"
+exec "${PY[@]}" "$HERE/../scripts/fm.py" "$@"

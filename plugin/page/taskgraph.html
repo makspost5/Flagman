@@ -1,0 +1,806 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title></title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-5 -5 110 110'%3E%3Cdefs%3E%3ClinearGradient id='a' x1='85' y1='10' x2='15' y2='85' gradientUnits='userSpaceOnUse'%3E%3Cstop offset='0' stop-color='%23FFD45A'/%3E%3Cstop offset='.5' stop-color='%23FFC247'/%3E%3Cstop offset='1' stop-color='%23F7A10F'/%3E%3C/linearGradient%3E%3Cpath id='f' d='M26 24 Q27 16 35 15.5 C52 17.5 72 18 93 12 L82.5 32 C66 34 46 33 33 38 Q29 40 28 46 C40 42.5 62 41 80 40 L72 54 C58 56 40 57 27 66 C21 72 14 80 7 88 Z'/%3E%3C/defs%3E%3Cuse href='%23f' fill='none' stroke='%23fff' stroke-width='21.6' stroke-linejoin='round'/%3E%3Cuse href='%23f' fill='none' stroke='%23111B2C' stroke-width='12.6' stroke-linejoin='round'/%3E%3Cuse href='%23f' fill='url(%23a)'/%3E%3C/svg%3E">
+<style>
+/* Flagman colours on neutral graphite surfaces, so the blue, teal and violet state colours stay
+   apart. Layers step up: page, graph canvas, item card. Dark theme: the
+   brand state colours. Light theme: the same hues darkened to at least 4.5:1 on white, so
+   state-coloured text and white badge text stay readable; amber stays brighter (3:1, enough for
+   borders and dots), its badge text is dark, and waiting edges use a deeper amber. */
+:root {
+  --bg: #eef0f3; --panel: #ffffff; --canvas: #f3f4f6; --node: #ffffff; --text: #1f2430; --muted: #5f6670;
+  --line: #d5d9df; --soft: #eceef1; --dot-off: #b4bac3;
+  --done: #31855b; --wait: #c6860e; --doing: #1b72ea; --review: #27827d; --ready: #8855ee; --blocked: #6b7689; --conflict: #dc343d;
+  --met: #31855b; --unmet: #b07a0c; --tint: .10;
+  --on-state: #ffffff; --on-wait: #1f2430;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1115; --panel: #171a1f; --canvas: #121418; --node: #262b34; --text: #e8eaee; --muted: #9ca3ad;
+    --line: #30353e; --soft: #2a2f38; --dot-off: #646b77;
+    --done: #4dbd85; --wait: #f2b84b; --doing: #438bee; --review: #39bdb5; --ready: #9568f0; --blocked: #8993a3; --conflict: #e66d73;
+    --met: #4dbd85; --unmet: #f2b84b; --tint: .12;
+    --on-state: #0f1115; --on-wait: #0f1115;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f1115; --panel: #171a1f; --canvas: #121418; --node: #262b34; --text: #e8eaee; --muted: #9ca3ad;
+  --line: #30353e; --soft: #2a2f38; --dot-off: #646b77;
+  --done: #4dbd85; --wait: #f2b84b; --doing: #438bee; --review: #39bdb5; --ready: #9568f0; --blocked: #8993a3; --conflict: #e66d73;
+  --met: #4dbd85; --unmet: #f2b84b; --tint: .12;
+  --on-state: #0f1115; --on-wait: #0f1115;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text);
+  font: 13px/1.4 -apple-system, "Segoe UI", Roboto, sans-serif; }
+/* The page is exactly one window high: the graph and the detail panel take whatever is left under the header. */
+.wrap { padding: 10px 16px 12px; height: 100vh; display: flex; flex-direction: column; }
+.wrap > * { flex: none; }
+a { color: var(--doing); }
+header { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; }
+.mark { width: 22px; height: 22px; align-self: center; margin-right: -4px; flex: none; }
+h1 { font-size: 16px; margin: 0; }
+.sub { color: var(--muted); font-size: 12px; }
+.bar { display: flex; height: 8px; border-radius: 4px; overflow: hidden; background: var(--soft); margin: 8px 0 5px; }
+.bar span { display: block; height: 100%; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; }
+.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; vertical-align: 0; }
+.c-done { background: var(--done); } .c-wait-me { background: var(--wait); } .c-doing { background: var(--doing); } .c-review { background: var(--review); }
+.c-ready { background: var(--ready); } .c-blocked { background: var(--blocked); }
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 8px 0; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; font-size: 12.5px; }
+.card > summary { font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--muted);
+  cursor: pointer; padding: 2px 0; }
+.card[open] > summary { margin-bottom: 4px; }
+.hint { margin: 0; padding-left: 16px; }
+.hint li { margin: 2px 0; }
+.chip { display: inline-block; padding: 0 6px; border-radius: 8px; font-size: 11px; font-weight: 600; cursor: pointer;
+  border: 1px solid var(--line); background: var(--soft); margin: 0 1px; line-height: 16px; }
+.sessions { display: grid; gap: 3px; }
+.sess { display: flex; gap: 6px; align-items: baseline; flex-wrap: wrap; }
+.sess b { min-width: 160px; font-weight: 600; }
+.tabs { display: flex; gap: 4px; margin: 0 0 6px; align-items: center; }
+.tabs button { font: inherit; font-size: 12.5px; padding: 3px 10px; border-radius: 6px; border: 1px solid var(--line);
+  background: var(--panel); color: var(--text); cursor: pointer; }
+.tabs button.on { background: var(--text); color: var(--bg); border-color: var(--text); }
+.tabs .sep { flex: 1; }
+.tabs button[hidden] { display: none; }
+.tabs .langs { display: flex; gap: 3px; align-items: center; margin-left: 10px; color: var(--muted); }
+.tabs .langs button { padding: 3px 7px; }
+.wrap > .main { flex: 1; min-height: 240px; display: grid; grid-template-columns: minmax(0, 1fr) 300px;
+  grid-template-rows: minmax(0, 1fr); gap: 10px; }
+.left { min-height: 0; display: flex; flex-direction: column; }
+.graphwrap { position: relative; flex: 1; min-height: 0; }
+.list { flex: 1; min-height: 0; overflow: auto; }
+.graphbox { background: var(--canvas); border: 1px solid var(--line); border-radius: 8px; overflow: hidden;
+  height: 100%; cursor: grab; user-select: none; touch-action: none; }
+.graphbox.grabbing { cursor: grabbing; }
+.graphbox svg { display: block; width: 100%; height: 100%; }
+.graphbox .empty { padding: 14px 16px; color: var(--muted); cursor: default; }
+.graphwrap.empty .zoomctl, .graphwrap.empty .ghelp { display: none; }
+.zoomctl { position: absolute; bottom: 8px; right: 8px; display: flex; gap: 3px; }
+.zoomctl button { font: inherit; font-size: 12px; min-width: 26px; padding: 2px 7px; border-radius: 6px; border: 1px solid var(--line);
+  background: var(--panel); color: var(--text); cursor: pointer; }
+.ghelp { position: absolute; left: 10px; bottom: 6px; font-size: 11px; color: var(--muted); pointer-events: none; }
+svg text { fill: var(--text); font-family: inherit; }
+.node rect.box { fill: var(--node); stroke-width: 1.6; }
+.node { cursor: pointer; }
+.node.sel rect.box { stroke-width: 3; }
+.node.dim { opacity: .3; }
+.st-done rect.box { stroke: var(--done); } .st-wait-me rect.box { stroke: var(--wait); }
+.st-doing rect.box { stroke: var(--doing); } .st-review rect.box { stroke: var(--review); } .st-ready rect.box { stroke: var(--ready); }
+.st-blocked rect.box { stroke: var(--blocked); stroke-dasharray: 4 3; }
+.node .tint { opacity: var(--tint); }
+.st-done .tint { fill: var(--done); } .st-wait-me .tint { fill: var(--wait); } .st-doing .tint { fill: var(--doing); } .st-review .tint { fill: var(--review); }
+.st-ready .tint { fill: var(--ready); } .st-blocked .tint { fill: var(--blocked); }
+.nid { font-weight: 700; font-size: 12px; } .ntitle { font-size: 11.5px; } .nmeta { font-size: 10px; fill: var(--muted) !important; }
+.sd { fill: none; stroke: var(--dot-off); } .sd.on { fill: var(--text); stroke: var(--text); }
+.edge { fill: none; stroke-width: 2; }
+.edge.met { stroke: var(--met); } .edge.unmet { stroke: var(--unmet); } .edge.part { stroke-dasharray: 2 3; }
+.edge.dim { opacity: .12; }
+.cf { fill: none; stroke: var(--conflict); stroke-width: 1.5; stroke-dasharray: 5 4; }
+.cflabel { fill: var(--conflict) !important; font-weight: 700; font-size: 12px; }
+.mk-met { fill: var(--met); } .mk-unmet { fill: var(--unmet); }
+.detail { min-height: 0; overflow: auto; }
+.detail h3 { margin: 0 0 4px; font-size: 14px; }
+.badge { display: inline-block; padding: 0 7px; border-radius: 8px; font-size: 11px; font-weight: 600; color: var(--on-state); line-height: 17px; }
+.b-done { background: var(--done); } .b-wait-me { background: var(--wait); color: var(--on-wait); } .b-doing { background: var(--doing); } .b-review { background: var(--review); }
+.b-ready { background: var(--ready); } .b-blocked, .b-todo { background: var(--blocked); }
+.pipe { display: flex; gap: 3px; margin: 8px 0; flex-wrap: wrap; }
+.pipe span { font-size: 11px; padding: 1px 6px; border-radius: 5px; background: var(--soft); color: var(--muted); }
+.pipe span.done { background: var(--done); color: var(--on-state); } .pipe span.cur { outline: 2px solid var(--text); color: var(--text); }
+.ask { border-left: 3px solid var(--wait); padding: 5px 8px; background: var(--soft); border-radius: 0 6px 6px 0; margin: 6px 0; }
+.detail h4 { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 10px 0 3px; }
+.detail ul { margin: 0; padding-left: 16px; } .detail li { margin: 2px 0; }
+.ok { color: var(--done); font-weight: 700; } .no { color: var(--wait); font-weight: 700; }
+.muted { color: var(--muted); }
+.list h2 { font-size: 13px; margin: 12px 0 4px; }
+details.item { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; margin: 4px 0; padding: 0 10px; }
+details.item summary { padding: 6px 0; cursor: pointer; }
+details.item[open] summary { border-bottom: 1px solid var(--line); }
+details.item .body { padding: 6px 0 10px; }
+.why { color: var(--muted); font-size: 12px; }
+#err { color: var(--conflict); white-space: pre-wrap; }
+@media (max-width: 900px) {
+  .wrap { height: auto; display: block; }
+  .grid, .wrap > .main { grid-template-columns: 1fr; grid-template-rows: auto; }
+  .graphwrap { height: 60vh; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div id="err"></div>
+  <header>
+    <svg class="mark" viewBox="-5 -5 110 110" aria-hidden="true"><title>Flagman</title>
+      <defs><linearGradient id="fm-amber" x1="85" y1="10" x2="15" y2="85" gradientUnits="userSpaceOnUse">
+        <stop offset="0" stop-color="#FFD45A"/><stop offset=".5" stop-color="#FFC247"/><stop offset="1" stop-color="#F7A10F"/></linearGradient>
+        <path id="fm-f" d="M26 24 Q27 16 35 15.5 C52 17.5 72 18 93 12 L82.5 32 C66 34 46 33 33 38 Q29 40 28 46 C40 42.5 62 41 80 40 L72 54 C58 56 40 57 27 66 C21 72 14 80 7 88 Z"/></defs>
+      <use href="#fm-f" fill="none" stroke="#fff" stroke-width="21.6" stroke-linejoin="round"/>
+      <use href="#fm-f" fill="none" stroke="#111B2C" stroke-width="12.6" stroke-linejoin="round"/>
+      <use href="#fm-f" fill="url(#fm-amber)"/></svg>
+    <h1 id="title"></h1>
+    <span class="sub" id="sub"></span>
+  </header>
+  <div class="bar" id="bar"></div>
+  <div class="legend" id="legend"></div>
+  <div class="grid">
+    <details class="card" open><summary data-t="parallel"></summary><ul class="hint" id="hints"></ul></details>
+    <details class="card" open><summary data-t="sessions"></summary><div class="sessions" id="sessions"></div></details>
+  </div>
+  <div class="tabs">
+    <button data-tab="graph" data-t="tabGraph"></button>
+    <button data-tab="list" data-t="tabList"></button>
+    <span class="sep"></span>
+    <button data-dir="lr" data-t="dirLr" data-tt="dirLrTip"></button>
+    <button data-dir="tb" data-t="dirTb" data-tt="dirTbTip"></button>
+    <span class="langs"><button data-lang="ru">RU</button>|<button data-lang="en">EN</button></span>
+  </div>
+  <div class="main">
+    <div class="left">
+      <div class="graphwrap" id="graphwrap">
+        <div class="graphbox" id="graph"></div>
+        <div class="zoomctl">
+          <button data-zoom="in" data-tt="zoomIn">+</button>
+          <button data-zoom="out" data-tt="zoomOut">−</button>
+          <button data-zoom="fit" data-t="fit" data-tt="fitTip"></button>
+        </div>
+        <div class="ghelp" data-t="help"></div>
+      </div>
+      <div class="list" id="list" hidden></div>
+    </div>
+    <aside class="card detail" id="detail"></aside>
+  </div>
+</div>
+<script src="taskgraph.js"></script>
+<script>
+(function () {
+  "use strict";
+  // Every UI string of the page. Stage names, titles and notes are task data and are never translated.
+  const I18N = {
+    ru: {
+      title: "Карта",
+      state: { "wait-me": "Ждёт тебя", doing: "В работе", review: "На ревью", ready: "Можно начать", blocked: "Ждёт других", done: "Готово",
+        todo: "Не начата" },
+      due: "срок",
+      count: function (n) { return "пунктов " + n; },
+      updated: function (when, ago) { return "обновлено " + when + " (" + ago + ")"; },
+      ago: function (min) {
+        return min < 60 ? min + " мин назад" : min < 1440 ? Math.floor(min / 60) + " ч назад" : Math.floor(min / 1440) + " дн назад";
+      },
+      info: "«Можно начать» и «Ждёт других» страница считает сама по зависимостям.",
+      parallel: "Что можно вести параллельно", sessions: "Сессии",
+      tabGraph: "Граф", tabList: "Список по статусам",
+      dirLr: "→ Слева направо", dirLrTip: "Зависимости слева направо",
+      dirTb: "↓ Сверху вниз", dirTbTip: "Зависимости сверху вниз",
+      zoomIn: "Приблизить", zoomOut: "Отдалить", fit: "Вписать", fitTip: "Показать весь граф",
+      help: "колесо — масштаб · зажать и тянуть — двигать · клик по пустому месту — снять выделение",
+      pick: "Нажмите на пункт, чтобы увидеть подробности.",
+      empty: "Пунктов пока нет.",
+      noData: "Нет данных: не удалось прочитать taskgraph.js рядом со страницей. Страница пробует снова.",
+      error: function (m, l) { return "Ошибка: " + m + " (строка " + l + ")"; },
+      allWait: "Сейчас ни одна сессия не работает — все ждут тебя.",
+      waitYou: function (n, m, list) {
+        return "<b>Ждут тебя: " + n + "</b> в " + m + " сессиях, каждое действие снимает с паузы свою: " + list + ".";
+      },
+      inReview: function (list) { return "<b>На ревью у других:</b> " + list + " — от тебя ничего не нужно, ждут ревью или мерджа."; },
+      free: function (list) { return "<b>Свободны и без сессии:</b> " + list + " — можно открыть новые сессии."; },
+      queued: function (list) {
+        return "<b>Свободны по зависимостям, но стоят в очереди сессии:</b> " + list + " — их можно вынести в отдельную сессию.";
+      },
+      conflict: function (a, b, why) { return a + "и" + b + "не стоит вести без договорённости: " + why; },
+      waitOthers: "Ждут других:",
+      queue: "очередь: ", noSession: "без сессии", session: "сессия",
+      ask: "Что нужно от тебя:", dependsOn: "Зависит от",
+      need: function (stage, part) { return "— нужно «" + stage + "»" + (part ? ", частично" : ""); },
+      dependents: "От него зависят", conflicts: "Конфликты", details: "Подробности", links: "Ссылки и файлы",
+      waitsFor: "ждёт: "
+    },
+    en: {
+      title: "Task map",
+      state: { "wait-me": "Waiting on you", doing: "In progress", review: "In review", ready: "Ready to start", blocked: "Waiting on others",
+        done: "Done", todo: "Not started" },
+      due: "due",
+      count: function (n) { return n + " items"; },
+      updated: function (when, ago) { return "updated " + when + " (" + ago + ")"; },
+      ago: function (min) {
+        return min < 60 ? min + " min ago" : min < 1440 ? Math.floor(min / 60) + " h ago" : Math.floor(min / 1440) + " d ago";
+      },
+      info: "The page works out “Ready to start” and “Waiting on others” from the dependencies.",
+      parallel: "What can run in parallel", sessions: "Sessions",
+      tabGraph: "Graph", tabList: "List by status",
+      dirLr: "→ Left to right", dirLrTip: "Dependencies left to right",
+      dirTb: "↓ Top to bottom", dirTbTip: "Dependencies top to bottom",
+      zoomIn: "Zoom in", zoomOut: "Zoom out", fit: "Fit", fitTip: "Show the whole graph",
+      help: "wheel — zoom · press and drag — move · click on empty space — clear selection",
+      pick: "Click an item to see its details.",
+      empty: "No items yet.",
+      noData: "No data: could not read taskgraph.js next to this page. The page keeps trying.",
+      error: function (m, l) { return "Error: " + m + " (line " + l + ")"; },
+      allWait: "No session is working right now — all of them are waiting on you.",
+      waitYou: function (n, m, list) {
+        return "<b>Waiting on you: " + n + "</b> in " + m + " sessions, each action unblocks its own: " + list + ".";
+      },
+      inReview: function (list) { return "<b>In review by others:</b> " + list + " — nothing needed from you, waiting for review or merge."; },
+      free: function (list) { return "<b>Free and without a session:</b> " + list + " — you can open new sessions for them."; },
+      queued: function (list) {
+        return "<b>Free by dependencies but queued in a session:</b> " + list + " — they can move to a separate session.";
+      },
+      conflict: function (a, b, why) { return a + " and " + b + " should not run without an agreement: " + why; },
+      waitOthers: "Waiting on others:",
+      queue: "queue: ", noSession: "no session", session: "session",
+      ask: "Needed from you:", dependsOn: "Depends on",
+      need: function (stage, part) { return "— needs “" + stage + "”" + (part ? ", partly" : ""); },
+      dependents: "Needed by", conflicts: "Conflicts", details: "Details", links: "Links and files",
+      waitsFor: "waits for: "
+    }
+  };
+  const ORDER = ["wait-me", "doing", "review", "ready", "blocked", "done"];
+  const BAR_ORDER = ["done", "wait-me", "doing", "review", "ready", "blocked"];
+  const $ = function (id) { return document.getElementById(id); };
+  const esc = function (s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); };
+  const store = {
+    get: function (k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+    set: function (k, v) { try { localStorage.setItem(k, v); } catch (e) { } }
+  };
+  const oneOf = function (v, allowed) { return allowed.indexOf(v) >= 0 ? v : null; };
+  const qs = new URLSearchParams(location.search);
+  const POLL = Math.max(200, parseInt(qs.get("poll"), 10) || 3000);
+  let hash = ""; try { hash = decodeURIComponent(location.hash.slice(1)); } catch (e) { }
+
+  // View state lives outside render(G): a data reload or a language switch keeps it.
+  const view = {
+    lang: oneOf(qs.get("lang"), ["ru", "en"]) || oneOf(store.get("fm-lang"), ["ru", "en"]),
+    dir: oneOf(qs.get("dir"), ["lr", "tb"]) || oneOf(store.get("fm-dir"), ["lr", "tb"]) || "lr",
+    tab: oneOf(qs.get("tab"), ["graph", "list"]) || oneOf(store.get("fm-tab"), ["graph", "list"]) || "graph",
+    sel: hash || null,
+    moved: false // the user panned or zoomed: a redraw keeps the viewBox instead of fitting the graph
+  };
+  let tr = I18N.ru, loading = false;
+
+  window.onerror = function (m, s, l) {
+    // The data file caught half-written (or broken by hand): ignored, the old data stays until the next poll.
+    if (/taskgraph\.js(\?|$)/.test(s || "") || (loading && /^Script error/.test(String(m)))) return true;
+    $("err").textContent = tr.error(m, l);
+  };
+
+  // Data model: rebuilt by render(G) from the current data.
+  let G = null, shownRev = null, STAGES = [], LAST = -1, byId = {}, sessById = {}, groupIdx = {}, dependents = {}, counts = {};
+  let depth = {}, cols = [];
+
+  function langOf() {
+    const l = view.lang || (G && G.lang);
+    return l === "ru" || l === "en" ? l : "ru";
+  }
+  function applyStatic() {
+    const lang = langOf();
+    tr = I18N[lang];
+    document.documentElement.lang = lang;
+    document.querySelectorAll("[data-t]").forEach(function (e) { e.textContent = tr[e.dataset.t]; });
+    document.querySelectorAll("[data-tt]").forEach(function (e) { e.title = tr[e.dataset.tt]; });
+    document.querySelectorAll("[data-lang]").forEach(function (b) { b.classList.toggle("on", b.dataset.lang === lang); });
+    document.title = tr.title + (G && G.task && G.task.key ? " " + G.task.key : "") + " · Flagman";
+  }
+
+  function depMet(d) {
+    const t = byId[d.id]; if (!t) return false;
+    const need = d.stage == null ? LAST : d.stage;
+    return t.status === "done" || t.stage >= need;
+  }
+  function stateOf(it) {
+    if (it.status === "done") return "done";
+    if (it.status === "wait-me") return "wait-me";
+    if (it.status === "doing") return "doing";
+    if (it.status === "review") return "review";
+    const hard = (it.deps || []).filter(function (d) { return d.kind !== "part"; });
+    return hard.every(depMet) ? "ready" : "blocked";
+  }
+  function conflictsOf(id) { return (G.conflicts || []).filter(function (c) { return c.a === id || c.b === id; }); }
+  function chip(id) { return '<span class="chip" data-go="' + esc(id) + '">' + esc(id) + "</span>"; }
+  function stageName(n) { return n == null ? STAGES[LAST] : STAGES[n]; }
+  function trunc(s, n) { s = String(s == null ? "" : s); return s.length > n ? s.slice(0, n - 1) + "…" : s; }
+  // Paths in `files` are relative to the page folder; each segment is URL-encoded so spaces, # and ? survive.
+  function fileHref(f) {
+    const s = String(f);
+    if (/^[a-z][a-z0-9+.-]+:/i.test(s)) return s;
+    const drive = /^[a-z]:[\\/]/i.test(s) ? s.slice(0, 2) : "";
+    const path = s.slice(drive.length).split(/[\\/]/).map(encodeURIComponent).join("/");
+    return drive ? "file:///" + drive + path : path;
+  }
+
+  // Only http(s), file and mailto links (or scheme-less relative ones) become anchors; anything else
+  // (javascript:, data:, vbscript: ...) stays plain text. Whitespace and control characters are ignored
+  // when looking for the scheme, as browsers do.
+  function anchor(href, label) {
+    const raw = String(href == null ? "" : href);
+    const m = /^([a-z][a-z0-9+.-]*):/i.exec(raw.replace(/[\u0000-\u0020]/g, ""));
+    if (m && !/^(https?|file|mailto)$/i.test(m[1])) return "<span>" + esc(label) + "</span>";
+    return '<a href="' + esc(raw) + '" target="_blank" rel="noopener">' + esc(label) + "</a>";
+  }
+
+  function buildModel() {
+    G.items = G.items || [];
+    STAGES = G.stages || []; LAST = STAGES.length - 1;
+    byId = {}; G.items.forEach(function (it, i) { it.idx = i; byId[it.id] = it; });
+    sessById = {}; (G.sessions || []).forEach(function (s) { sessById[s.id] = s; });
+    groupIdx = {}; (G.groups || []).forEach(function (g, i) { groupIdx[g.id] = i; });
+    G.items.forEach(function (it) { it.state = stateOf(it); });
+    dependents = {}; G.items.forEach(function (it) { (it.deps || []).forEach(function (d) { (dependents[d.id] = dependents[d.id] || []).push({ id: it.id, dep: d }); }); });
+    counts = {}; ORDER.forEach(function (s) { counts[s] = 0; }); G.items.forEach(function (it) { counts[it.state]++; });
+    // Graph layers by dependency depth
+    depth = {};
+    const depthOf = function (id, seen) {
+      if (depth[id] != null) return depth[id];
+      seen = seen || {}; if (seen[id]) return 0; seen[id] = true;
+      const ds = (byId[id].deps || []).filter(function (d) { return byId[d.id]; });
+      depth[id] = ds.length ? 1 + Math.max.apply(null, ds.map(function (d) { return depthOf(d.id, seen); })) : 0;
+      return depth[id];
+    };
+    G.items.forEach(function (it) { depthOf(it.id); });
+    cols = [];
+    G.items.forEach(function (it) { (cols[depth[it.id]] = cols[depth[it.id]] || []).push(it); });
+  }
+
+  // One render for everything that comes from the data; view state (dir, tab, selection, viewBox, lang) is kept.
+  function render(data) {
+    G = data;
+    $("err").textContent = "";
+    applyStatic();
+    buildModel();
+    const listEl = $("list"), detailEl = $("detail");
+    const keep = { list: listEl.scrollTop, detail: detailEl.scrollTop, open: {} };
+    listEl.querySelectorAll("details.item[open]").forEach(function (d) { keep.open[d.dataset.item] = true; });
+
+    // Header and progress
+    const T = G.task || {};
+    $("title").innerHTML = esc(T.key) + " · " + esc(T.title);
+    renderSub();
+    const total = G.items.length;
+    $("bar").innerHTML = BAR_ORDER.map(function (s) {
+      return counts[s] ? '<span class="c-' + s + '" style="width:' + (100 * counts[s] / total) + '%" title="' + esc(tr.state[s]) + ": " + counts[s] + '"></span>' : "";
+    }).join("");
+    $("legend").innerHTML = BAR_ORDER.map(function (s) {
+      return '<span><span class="dot c-' + s + '"></span>' + esc(tr.state[s]) + ": <b>" + counts[s] + "</b></span>";
+    }).join("");
+    $("hints").innerHTML = hintsHtml().map(function (h) { return "<li>" + h + "</li>"; }).join("");
+    $("sessions").innerHTML = sessionsHtml();
+    listEl.innerHTML = listHtml();
+    listEl.querySelectorAll("details.item").forEach(function (d) { if (keep.open[d.dataset.item]) d.open = true; });
+    renderGraph(view.dir);
+    applySelection();
+    listEl.scrollTop = keep.list; detailEl.scrollTop = keep.detail;
+    shownRev = T.rev;
+    document.body.dataset.rev = T.rev == null ? "" : String(T.rev);
+  }
+
+  // "updated HH:MM (N min ago)" from task.updated ("YYYY-MM-DDTHH:MM", local time); the date shows when it is not today.
+  function renderSub() {
+    const T = G.task || {};
+    const parts = (T.links || []).map(function (l) { return anchor(l.href, l.label || l.href); });
+    if (T.due) parts.push(esc(tr.due) + " " + esc(T.due));
+    const m = /^(\d{4})-(\d\d)-(\d\d)[T ](\d\d):(\d\d)/.exec(T.updated || "");
+    if (m) {
+      const t = new Date(+m[1], m[2] - 1, +m[3], +m[4], +m[5]), now = new Date();
+      const min = Math.max(0, Math.floor((now - t) / 60000));
+      const when = (t.toDateString() === now.toDateString() ? "" : m[1] + "-" + m[2] + "-" + m[3] + " ") + m[4] + ":" + m[5];
+      parts.push(esc(tr.updated(when, tr.ago(min))));
+    }
+    parts.push(esc(tr.count(G.items.length)));
+    parts.push('<span title="' + esc(tr.info) + '">ⓘ</span>');
+    $("sub").innerHTML = parts.join(" · ");
+  }
+
+  // Hints: what can run in parallel
+  function hintsHtml() {
+    const hints = [];
+    const waitMe = G.items.filter(function (it) { return it.state === "wait-me"; });
+    if (waitMe.length) {
+      const bySess = {}; waitMe.forEach(function (it) { const k = it.session || "—"; (bySess[k] = bySess[k] || []).push(it.id); });
+      if (!counts.doing) hints.push('<span class="no">' + esc(tr.allWait) + "</span>");
+      hints.push(tr.waitYou(waitMe.length, Object.keys(bySess).length,
+        Object.keys(bySess).map(function (k) { return esc(k) + " (" + bySess[k].map(function (id) { return chip(id); }).join("") + ")"; }).join(", ")));
+    }
+    const inReview = G.items.filter(function (it) { return it.state === "review"; });
+    if (inReview.length) hints.push(tr.inReview(inReview.map(function (it) { return chip(it.id); }).join("")));
+    const ready = G.items.filter(function (it) { return it.state === "ready"; });
+    const freeNoSess = ready.filter(function (it) { return !it.session; });
+    if (freeNoSess.length) hints.push(tr.free(freeNoSess.map(function (it) { return chip(it.id); }).join("")));
+    const queued = ready.filter(function (it) {
+      const s = it.session && sessById[it.session]; if (!s || !s.queue) return false;
+      const pos = s.queue.indexOf(it.id);
+      return s.queue.slice(0, pos).some(function (id) { return byId[id] && byId[id].state !== "done"; });
+    });
+    if (queued.length) hints.push(tr.queued(queued.map(function (it) { return chip(it.id) + '<span class="muted">(' + esc(it.session) + ")</span>"; }).join(" ")));
+    (G.conflicts || []).forEach(function (c) { hints.push('<span class="no">⚠</span> ' + tr.conflict(chip(c.a), chip(c.b), esc(c.why))); });
+    const blocked = G.items.filter(function (it) { return it.state === "blocked"; });
+    if (blocked.length) hints.push("<b>" + esc(tr.waitOthers) + "</b> " + blocked.map(function (it) {
+      const miss = (it.deps || []).filter(function (d) { return d.kind !== "part" && !depMet(d); });
+      return chip(it.id) + "← " + miss.map(function (d) { return chip(d.id); }).join("");
+    }).join(" · "));
+    return hints;
+  }
+
+  // Sessions
+  function sessionsHtml() {
+    const noSess = G.items.filter(function (it) { return !it.session && it.state !== "done"; });
+    return (G.sessions || []).map(function (s) {
+      return '<div class="sess"><b>' + esc(s.name) + '</b><span class="badge b-' + esc(s.state) + '">' + esc(tr.state[s.state] || s.state) + "</span>" +
+        '<span class="muted">' + esc(s.note || "") + "</span>" +
+        (s.queue && s.queue.length ? '<span class="muted">' + esc(tr.queue) + s.queue.map(function (id) { return chip(id); }).join("→") + "</span>" : "") + "</div>";
+    }).join("") + (noSess.length ? '<div class="sess"><b>' + esc(tr.noSession) + "</b>" + noSess.map(function (it) { return chip(it.id); }).join("") + "</div>" : "");
+  }
+
+  // Detail panel
+  function detailHtml(it) {
+    let h = "<h3>" + esc(it.id) + " · " + esc(it.title) + "</h3>";
+    h += '<span class="badge b-' + it.state + '">' + esc(tr.state[it.state]) + "</span> ";
+    const sess = it.session ? tr.session + " " + (sessById[it.session] ? sessById[it.session].name : it.session) : tr.noSession;
+    h += '<span class="muted">' + esc([it.group, sess].filter(Boolean).join(" · ")) + "</span>";
+    h += '<div class="pipe">' + STAGES.map(function (s, i) {
+      // `stage` is the last stage reached (as the dots on the node show): it is done, the next one is in progress.
+      const cls = i <= it.stage || it.status === "done" ? "done" : (i === it.stage + 1 ? "cur" : "");
+      return '<span class="' + cls + '">' + esc(s) + "</span>";
+    }).join("") + "</div>";
+    if (it.wait) h += '<div class="ask"><b>' + esc(tr.ask) + "</b> " + esc(it.wait) + "</div>";
+    if (it.summary) h += "<div>" + esc(it.summary) + "</div>";
+    if (it.deps && it.deps.length) {
+      h += "<h4>" + esc(tr.dependsOn) + "</h4><ul>" + it.deps.map(function (d) {
+        const t = byId[d.id];
+        return "<li>" + (depMet(d) ? '<span class="ok">✓</span> ' : '<span class="no">✗</span> ') + chip(d.id) +
+          esc(t ? t.title : "?") + ' <span class="muted">' + esc(tr.need(stageName(d.stage), d.kind === "part")) +
+          (d.note ? "; " + esc(d.note) : "") + "</span></li>";
+      }).join("") + "</ul>";
+    }
+    const rev = dependents[it.id] || [];
+    if (rev.length) h += "<h4>" + esc(tr.dependents) + "</h4><ul>" + rev.map(function (r) { return "<li>" + chip(r.id) + esc(byId[r.id].title) + "</li>"; }).join("") + "</ul>";
+    const cf = conflictsOf(it.id);
+    if (cf.length) h += "<h4>" + esc(tr.conflicts) + "</h4><ul>" + cf.map(function (c) { const o = c.a === it.id ? c.b : c.a; return '<li><span class="no">⚠</span> ' + chip(o) + esc(c.why) + "</li>"; }).join("") + "</ul>";
+    if (it.details && it.details.length) h += "<h4>" + esc(tr.details) + "</h4><ul>" + it.details.map(function (d) { return "<li>" + esc(d) + "</li>"; }).join("") + "</ul>";
+    const links = (it.links || []).map(function (l) { return "<li>" + anchor(l.href, l.label || l.href) + "</li>"; })
+      .concat((it.files || []).map(function (f) { return "<li>" + anchor(fileHref(f), f) + "</li>"; }));
+    if (links.length) h += "<h4>" + esc(tr.links) + "</h4><ul>" + links.join("") + "</ul>";
+    return h;
+  }
+
+  // List by status
+  function listHtml() {
+    if (!G.items.length) return '<p class="muted">' + esc(tr.empty) + "</p>";
+    return ORDER.filter(function (s) { return counts[s]; }).map(function (s) {
+      return "<h2>" + esc(tr.state[s]) + " · " + counts[s] + "</h2>" + G.items.filter(function (it) { return it.state === s; }).map(function (it) {
+        let why = it.wait || "";
+        if (s === "blocked") why = tr.waitsFor + (it.deps || []).filter(function (d) { return d.kind !== "part" && !depMet(d); }).map(function (d) { return d.id + " (" + stageName(d.stage) + ")"; }).join(", ");
+        if (s === "ready") why = it.session ? tr.session + " " + it.session : tr.noSession;
+        return '<details class="item" data-item="' + esc(it.id) + '"><summary><b>' + esc(it.id) + "</b> · " + esc(it.title) +
+          (why ? ' <span class="why">— ' + esc(why) + "</span>" : "") + '</summary><div class="body">' + detailHtml(it) + "</div></details>";
+      }).join("");
+    }).join("");
+  }
+
+  // Graph
+  const box = $("graph");
+  let natural = { w: 1, h: 1 }, vb = { x: 0, y: 0, w: 1, h: 1 };
+
+  function renderGraph(dir) {
+    $("graphwrap").classList.toggle("empty", !G.items.length);
+    if (!G.items.length) {
+      natural = { w: 1, h: 1 };
+      box.innerHTML = '<div class="empty">' + esc(tr.empty) + "</div>";
+      return;
+    }
+    const TB = dir === "tb";
+    const W = TB ? 156 : 168, H = 50, GX = TB ? 12 : 40, GY = TB ? 38 : 10, PX = TB ? 16 : 44, PY = TB ? 46 : 14, TAIL = 10;
+    const pos = {}, center = {};
+    // Each layer holds nodes plus one narrow lane per arrow that skips that layer, so long arrows run between
+    // nodes, never under them. Order: layer 0 by group, then down / up / down passes by the mean position
+    // of neighbours in the adjacent layer, to cut crossings.
+    const NS = TB ? W : H, LS = 14, GAP = TB ? GX : GY;
+    const L = cols.map(function (c) { return c.map(function (it) { return { id: it.id, it: it }; }); });
+    const up = {}, dn = {}, chain = {};
+    const link = function (a, b) { (dn[a] = dn[a] || []).push(b); (up[b] = up[b] || []).push(a); };
+    G.items.forEach(function (it) {
+      (it.deps || []).forEach(function (d) {
+        if (!byId[d.id]) return;
+        let prev = d.id; const ids = [];
+        for (let l = depth[d.id] + 1; l < depth[it.id]; l++) {
+          const lid = "~" + d.id + ">" + it.id + "@" + l;
+          L[l].push({ id: lid, lane: true, idx: 1e6 + L[l].length });
+          ids.push(lid); link(prev, lid); prev = lid;
+        }
+        link(prev, it.id); chain[d.id + ">" + it.id] = ids;
+      });
+    });
+    const sizeOf = function (x) { return x.lane ? LS : NS; };
+    const spanOf = function (layer) { return layer.reduce(function (s, x) { return s + sizeOf(x); }, 0) + GAP * Math.max(0, layer.length - 1); };
+    const maxSpan = Math.max.apply(null, L.map(spanOf));
+    const place = function (layer, li) {
+      let c = TB ? (maxSpan - spanOf(layer)) / 2 : 0;
+      layer.forEach(function (x) {
+        const s = sizeOf(x);
+        pos[x.id] = TB ? { x: PX + c, y: PY + li * (H + GY) } : { x: PX + li * (W + GX), y: PY + c };
+        center[x.id] = (TB ? PX : PY) + c + s / 2;
+        c += s + GAP;
+      });
+    };
+    const mean = function (ids, dflt) {
+      const v = (ids || []).filter(function (id) { return center[id] != null; }).map(function (id) { return center[id]; });
+      return v.length ? v.reduce(function (s, x) { return s + x; }, 0) / v.length : dflt;
+    };
+    const keyOf = function (x) { return x.it ? x.it.idx : x.idx; };
+    const sortBy = function (layer, nb) {
+      layer.forEach(function (x) { x.bary = mean(nb[x.id], center[x.id] != null ? center[x.id] : Infinity); });
+      layer.sort(function (a, b) { return (a.bary - b.bary) || (keyOf(a) - keyOf(b)); });
+    };
+    const gi = function (it) { return groupIdx[it.group] != null ? groupIdx[it.group] : 1e6; };
+    L[0].sort(function (a, b) { return (gi(a.it) - gi(b.it)) || (a.it.idx - b.it.idx); });
+    L.forEach(function (layer, li) { if (li > 0) sortBy(layer, up); place(layer, li); });
+    for (let li = L.length - 2; li >= 0; li--) { sortBy(L[li], dn); place(L[li], li); }
+    L.forEach(function (layer, li) { if (li > 0) sortBy(layer, up); place(layer, li); });
+    const cross = function (id) { return center[id]; };
+    const svgW = TB ? PX * 2 + maxSpan : PX + L.length * (W + GX);
+    const svgH = TB ? PY + L.length * (H + GY) : PY * 2 + maxSpan;
+    natural = { w: svgW, h: svgH };
+
+    let svg = '<svg xmlns="http://www.w3.org/2000/svg">' +
+      '<defs><marker id="am" viewBox="0 0 10 10" refX="9.5" refY="5" markerUnits="userSpaceOnUse" markerWidth="8" markerHeight="8" orient="auto"><path class="mk-met" d="M0,0L10,5L0,10z"/></marker>' +
+      '<marker id="au" viewBox="0 0 10 10" refX="9.5" refY="5" markerUnits="userSpaceOnUse" markerWidth="8" markerHeight="8" orient="auto"><path class="mk-unmet" d="M0,0L10,5L0,10z"/></marker></defs>';
+    const edges = [], inc = {}, out = {};
+    G.items.forEach(function (it) {
+      (it.deps || []).forEach(function (d) {
+        if (!pos[d.id]) return;
+        const e = { a: d.id, b: it.id, d: d, it: it, lanes: chain[d.id + ">" + it.id] || [], inOff: 0, outOff: 0 };
+        edges.push(e); (inc[it.id] = inc[it.id] || []).push(e); (out[d.id] = out[d.id] || []).push(e);
+      });
+    });
+    // Several arrows into (or out of) one node get their own ports along its side, ordered by where the next hop is,
+    // so each arrow stays visible up to its own arrowhead.
+    const spread = function (list, keyFn, prop) {
+      list.sort(function (p, q) { return keyFn(p) - keyFn(q); });
+      const n = list.length, step = n > 1 ? Math.min(TB ? 34 : 14, NS * 0.7 / (n - 1)) : 0;
+      list.forEach(function (e, i) { e[prop] = (i - (n - 1) / 2) * step; });
+    };
+    Object.keys(inc).forEach(function (id) { spread(inc[id], function (e) { return cross(e.lanes.length ? e.lanes[e.lanes.length - 1] : e.a); }, "inOff"); });
+    Object.keys(out).forEach(function (id) { spread(out[id], function (e) { return cross(e.lanes.length ? e.lanes[0] : e.b); }, "outOff"); });
+    // Path: source port, then straight across each lane, then the target port. Every hop leaves and enters along the
+    // flow direction; the last one ends with a straight tail, so the line enters the arrowhead straight.
+    const hop = function (x1, y1, x2, y2) {
+      if (TB) { const k = Math.max(12, (y2 - y1) / 2); return " C" + x1 + "," + (y1 + k) + " " + x2 + "," + (y2 - k) + " " + x2 + "," + y2; }
+      const k = Math.max(16, (x2 - x1) / 2); return " C" + (x1 + k) + "," + y1 + " " + (x2 - k) + "," + y2 + " " + x2 + "," + y2;
+    };
+    edges.forEach(function (e) {
+        const it = e.it, d = e.d, a = pos[e.a], b = pos[e.b];
+        const met = depMet(d);
+        let x, y, p;
+        if (TB) { x = a.x + W / 2 + e.outOff; y = a.y + H; } else { x = a.x + W; y = a.y + H / 2 + e.outOff; }
+        p = "M" + x + "," + y;
+        e.lanes.forEach(function (lid) {
+          const q = pos[lid], c = center[lid];
+          if (TB) { p += hop(x, y, c, q.y) + " L" + c + "," + (q.y + H); x = c; y = q.y + H; }
+          else { p += hop(x, y, q.x, c) + " L" + (q.x + W) + "," + c; x = q.x + W; y = c; }
+        });
+        if (TB) { const x2 = b.x + W / 2 + e.inOff, y2 = b.y - 1; p += hop(x, y, x2, y2 - TAIL) + " L" + x2 + "," + y2; }
+        else { const x2 = b.x - 1, y2 = b.y + H / 2 + e.inOff; p += hop(x, y, x2 - TAIL, y2) + " L" + x2 + "," + y2; }
+        svg +='<path class="edge ' + (met ? "met" : "unmet") + (d.kind === "part" ? " part" : "") + '" data-a="' + esc(d.id) + '" data-b="' + esc(it.id) +
+          '" marker-end="url(#' + (met ? "am" : "au") + ')" d="' + p + '"><title>' + esc(d.id + " → " + it.id + ": " + (d.note || "")) + "</title></path>";
+    });
+    (G.conflicts || []).forEach(function (c) {
+      const a = pos[c.a], b = pos[c.b]; if (!a || !b) return;
+      let p, lx, ly;
+      if (TB ? a.y !== b.y : a.x !== b.x) {
+        // Different layers: a straight line between the facing sides of the two boxes, the mark in the middle.
+        // Its ends sit near the ends of those sides, clear of the arrow ports in the middle.
+        const f = TB ? (a.y < b.y ? a : b) : (a.x < b.x ? a : b), g = f === a ? b : a;
+        let s, t;
+        if (TB) {
+          const d = g.x - f.x, left = d <= 0;
+          const fx = left ? 8 : W - 8;
+          const gx = Math.abs(d) < W ? fx : (left ? W - 8 : 8);
+          s = { x: f.x + fx, y: f.y + H }; t = { x: g.x + gx, y: g.y };
+        } else {
+          const d = g.y - f.y, up = d < 0;
+          const fy = up ? 5 : H - 5;
+          const gy = Math.abs(d) < H ? fy : (up ? H - 5 : 5);
+          s = { x: f.x + W, y: f.y + fy }; t = { x: g.x, y: g.y + gy };
+        }
+        p = "M" + s.x + "," + s.y + " L" + t.x + "," + t.y;
+        lx = (s.x + t.x) / 2 - 6; ly = (s.y + t.y) / 2 + 4;
+      } else if (TB) {
+        const x1 = a.x + W / 2, y1 = a.y, x2 = b.x + W / 2, y2 = b.y, bend = Math.min(40, PY - 6);
+        p = "M" + x1 + "," + y1 + " C" + x1 + "," + (y1 - bend) + " " + x2 + "," + (y2 - bend) + " " + x2 + "," + y2;
+        lx = (x1 + x2) / 2 - 6; ly = Math.min(y1, y2) - bend * 0.75 + 4;
+      } else {
+        const x1 = a.x, y1 = a.y + H / 2, x2 = b.x, y2 = b.y + H / 2, bend = Math.min(40, PX - 6);
+        p = "M" + x1 + "," + y1 + " C" + (x1 - bend) + "," + y1 + " " + (x2 - bend) + "," + y2 + " " + x2 + "," + y2;
+        lx = Math.min(x1, x2) - bend * 0.75 - 6; ly = (y1 + y2) / 2 + 4;
+      }
+      svg += '<path class="cf" d="' + p + '"><title>' + esc(c.why) + "</title></path>";
+      svg += '<text class="cflabel" x="' + lx + '" y="' + ly + '">⚠</text>';
+    });
+    G.items.forEach(function (it) {
+      const p = pos[it.id];
+      svg += '<g class="node st-' + it.state + '" data-id="' + esc(it.id) + '" transform="translate(' + p.x + "," + p.y + ')">' +
+        "<title>" + esc(it.id + " · " + it.title + " — " + tr.state[it.state]) + "</title>" +
+        '<rect class="box" width="' + W + '" height="' + H + '" rx="8"/><rect class="tint" width="' + W + '" height="' + H + '" rx="8"/>' +
+        '<text class="nid" x="10" y="16">' + esc(it.id) + "</text>" +
+        '<text class="nmeta" x="' + (W - 8) + '" y="15" text-anchor="end">' + esc([it.group, it.session].filter(Boolean).join(" · ")) + "</text>" +
+        '<text class="ntitle" x="10" y="31">' + esc(trunc(it.title, TB ? 23 : 25)) + "</text>";
+      STAGES.forEach(function (s, i) {
+        const on = it.status === "done" || i <= it.stage;
+        svg += '<circle class="sd' + (on ? " on" : "") + '" cx="' + (13 + i * 10) + '" cy="41" r="3"><title>' + esc(s) + "</title></circle>";
+      });
+      svg += '<text class="nmeta" x="' + (W - 8) + '" y="44" text-anchor="end">' + esc(tr.state[it.state]) + "</text></g>";
+    });
+    svg += "</svg>";
+    box.innerHTML = svg;
+    if (view.moved) applyVB(); else fit();
+  }
+
+  // Pan and zoom through the viewBox: wheel zooms around the cursor, drag moves, "Fit" shows the whole graph.
+  // Any pan or zoom sets view.moved, so a data reload keeps the user's view; fitting clears it.
+  function applyVB() { const s = box.querySelector("svg"); if (s) s.setAttribute("viewBox", vb.x + " " + vb.y + " " + vb.w + " " + vb.h); }
+  function fit() {
+    view.moved = false;
+    const bw = box.clientWidth, bh = box.clientHeight;
+    if (!bw || !bh) { vb = { x: 0, y: 0, w: natural.w, h: natural.h }; applyVB(); return; }
+    const s = Math.min(bw / natural.w, bh / natural.h, 1);
+    vb = { w: bw / s, h: bh / s, x: 0, y: 0 };
+    vb.x = (natural.w - vb.w) / 2;
+    applyVB();
+  }
+  function zoomAt(mx, my, f) {
+    const bw = box.clientWidth, bh = box.clientHeight; if (!bw) return;
+    const s = bw / vb.w, ns = Math.max(0.2, Math.min(3, s * f));
+    const px = vb.x + mx / s, py = vb.y + my / s;
+    vb = { w: bw / ns, h: bh / ns, x: px - mx / ns, y: py - my / ns };
+    view.moved = true;
+    applyVB();
+  }
+  box.addEventListener("wheel", function (e) {
+    e.preventDefault();
+    const r = box.getBoundingClientRect();
+    zoomAt(e.clientX - r.left, e.clientY - r.top, Math.pow(1.0015, -e.deltaY));
+  }, { passive: false });
+  let drag = null, dragged = false;
+  box.addEventListener("pointerdown", function (e) {
+    if (e.button !== 0) return;
+    dragged = false;
+    drag = { x: e.clientX, y: e.clientY, vx: vb.x, vy: vb.y, moved: false };
+  });
+  window.addEventListener("pointermove", function (e) {
+    if (!drag) return;
+    const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+    if (!drag.moved && Math.abs(dx) + Math.abs(dy) < 4) return;
+    if (!drag.moved) { drag.moved = true; view.moved = true; box.classList.add("grabbing"); }
+    const s = box.clientWidth / vb.w;
+    vb.x = drag.vx - dx / s; vb.y = drag.vy - dy / s; applyVB();
+  });
+  window.addEventListener("pointerup", function () { if (drag && drag.moved) dragged = true; drag = null; box.classList.remove("grabbing"); });
+  document.querySelectorAll("[data-zoom]").forEach(function (b) {
+    b.addEventListener("click", function () {
+      const z = b.dataset.zoom;
+      if (z === "fit") fit(); else zoomAt(box.clientWidth / 2, box.clientHeight / 2, z === "in" ? 1.25 : 0.8);
+    });
+  });
+  window.addEventListener("resize", function () { fit(); });
+
+  // Selection
+  function placeholder() { return '<span class="muted">' + esc(tr.pick) + "</span>"; }
+  function select(id) {
+    const it = byId[id]; if (!it) return;
+    view.sel = id;
+    $("detail").innerHTML = detailHtml(it);
+    const near = {}; near[id] = true;
+    (it.deps || []).forEach(function (d) { near[d.id] = true; });
+    (dependents[id] || []).forEach(function (r) { near[r.id] = true; });
+    conflictsOf(id).forEach(function (c) { near[c.a] = true; near[c.b] = true; });
+    document.querySelectorAll(".node").forEach(function (n) {
+      n.classList.toggle("sel", n.dataset.id === id);
+      n.classList.toggle("dim", !near[n.dataset.id]);
+    });
+    document.querySelectorAll(".edge").forEach(function (e) { e.classList.toggle("dim", e.dataset.a !== id && e.dataset.b !== id); });
+    try { history.replaceState(null, "", "#" + encodeURIComponent(id)); } catch (e) { }
+  }
+  function clearSelection() {
+    view.sel = null;
+    $("detail").innerHTML = placeholder();
+    document.querySelectorAll(".node").forEach(function (n) { n.classList.remove("sel", "dim"); });
+    document.querySelectorAll(".edge").forEach(function (e) { e.classList.remove("dim"); });
+    try { history.replaceState(null, "", location.pathname + location.search); } catch (e) { }
+  }
+  // After a redraw: select the same item again; drop the selection only if the item is gone from the data.
+  function applySelection() {
+    if (view.sel && byId[view.sel]) select(view.sel);
+    else if (view.sel && G) clearSelection();
+    else $("detail").innerHTML = placeholder();
+  }
+  document.addEventListener("click", function (e) {
+    if (dragged) { dragged = false; return; }
+    const n = e.target.closest(".node"); if (n) { select(n.dataset.id); return; }
+    const c = e.target.closest("[data-go]"); if (c) { e.preventDefault(); setTab("graph"); select(c.dataset.go); return; }
+    if (e.target.closest("#graph")) clearSelection();
+  });
+
+  // Tabs, orientation and language
+  function setTab(t) {
+    view.tab = t;
+    document.querySelectorAll(".tabs button[data-tab]").forEach(function (b) { b.classList.toggle("on", b.dataset.tab === t); });
+    document.querySelectorAll(".tabs button[data-dir]").forEach(function (b) { b.hidden = t !== "graph"; });
+    $("graphwrap").hidden = t !== "graph";
+    $("list").hidden = t !== "list";
+    if (t === "graph") fit();
+    store.set("fm-tab", t);
+  }
+  document.querySelectorAll(".tabs button[data-tab]").forEach(function (b) { b.addEventListener("click", function () { setTab(b.dataset.tab); }); });
+  function setDir(d) {
+    view.dir = d;
+    view.moved = false;
+    document.querySelectorAll(".tabs button[data-dir]").forEach(function (b) { b.classList.toggle("on", b.dataset.dir === d); });
+    store.set("fm-dir", d);
+    if (!G) return;
+    renderGraph(d);
+    if (view.sel && byId[view.sel]) select(view.sel);
+  }
+  document.querySelectorAll(".tabs button[data-dir]").forEach(function (b) { b.addEventListener("click", function () { setDir(b.dataset.dir); }); });
+  document.querySelectorAll("[data-lang]").forEach(function (b) {
+    b.addEventListener("click", function () {
+      view.lang = b.dataset.lang;
+      store.set("fm-lang", view.lang);
+      if (G) render(G); else { applyStatic(); applySelection(); $("err").textContent = tr.noData; }
+    });
+  });
+
+  // Live reload: every POLL ms load taskgraph.js again under a new URL (file:// has no HTTP cache, a new query
+  // string makes the browser read the file again) and redraw when task.rev changed. A data script that fails
+  // to load or throws leaves window.TASKGRAPH as it was, so the old data stays.
+  function poll() {
+    const s = document.createElement("script");
+    s.src = "taskgraph.js?t=" + Date.now();
+    s.onload = s.onerror = function () {
+      loading = false;
+      s.remove();
+      try {
+        const N = window.TASKGRAPH;
+        if (N && N !== G && (N.task || {}).rev !== shownRev) render(N);
+      } finally {
+        setTimeout(poll, POLL);
+      }
+    };
+    loading = true;
+    document.head.appendChild(s);
+  }
+
+  // Polling starts first, so a failed first render still gets the next data.
+  setTimeout(poll, POLL);
+  setInterval(function () { if (G) renderSub(); }, 60000);
+  applyStatic();
+  setTab(view.tab);
+  setDir(view.dir);
+  if (window.TASKGRAPH) render(window.TASKGRAPH);
+  else { applySelection(); $("err").textContent = tr.noData; }
+})();
+</script>
+</body>
+</html>

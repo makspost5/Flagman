@@ -1,0 +1,12 @@
+{
+  "name": "flagman",
+  "description": "Flagman: run a big task with several Claude Code sessions and see all of it at a glance.",
+  "owner": { "name": "Flagman authors" },
+  "plugins": [
+    {
+      "name": "flagman",
+      "source": "./plugin",
+      "description": "A live map of a big task: its items, their stages and statuses, what waits on you and what can run in parallel, in a local web page."
+    }
+  ]
+}

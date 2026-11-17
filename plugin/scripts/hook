@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+# Hook launcher. Usage: hook post-tool | prompt (JSON on stdin).
+# Safe to source (". hook post-tool") or to run (bash hook post-tool); bash only.
+# Always ends with exit 0 (or the Python exit code); never prints errors.
+#
+# Only a bounded prefix of stdin is read here. `read` takes one byte per syscall,
+# and PostToolUse input can be megabytes (Edit's originalFile, Write's content).
+# "session_id" and, normally, "file_path" come first. Bash 3.2 has -n but not -N.
+case "$1" in
+    post-tool) _fm_max=8192 ;;
+    prompt) _fm_max=2048 ;;
+    *) exit 0 ;;
+esac
+IFS= read -r -d '' -n "$_fm_max" _fm_input || true
+_fm_full=0
+[ "${#_fm_input}" -ge "$_fm_max" ] && _fm_full=1
+case "$1" in
+    post-tool)
+        case "$_fm_input" in
+            *'"file_path"'*)
+                case "$_fm_input" in
+                    *[/\\]'status.md"'* | *[/\\]'plan.md"'*) ;;
+                    *)
+                        [ "$_fm_full" = 1 ] && cat >/dev/null 2>&1
+                        exit 0
+                        ;;
+                esac
+                ;;
+            *)
+                # the path may follow a long old_string/content: let Python decide
+                [ "$_fm_full" = 1 ] || exit 0
+                ;;
+        esac
+        _fm_here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+        # probe in a subshell: pick-python.sh may call exit
+        _fm_py=$( source "$_fm_here/pick-python.sh" 2>/dev/null; printf '%s' "${PY[*]}" )
+        read -r -a _fm_pya <<< "$_fm_py"
+        if [ "${#_fm_pya[@]}" -eq 0 ]; then
+            [ "$_fm_full" = 1 ] && cat >/dev/null 2>&1
+            exit 0
+        fi
+        { printf '%s' "$_fm_input"; cat; } | "${_fm_pya[@]}" "$_fm_here/hook.py" post-tool
+        exit 0
+        ;;
+    prompt)
+        _fm_re='"session_id"[[:space:]]*:[[:space:]]*"([^"]*)"'
+        _fm_sid=none
+        if [[ $_fm_input =~ $_fm_re ]] && [ -n "${BASH_REMATCH[1]}" ]; then
+            _fm_sid="${BASH_REMATCH[1]//[^A-Za-z0-9_.-]/_}"
+            _fm_sid="${_fm_sid:0:80}"
+        fi
+        [ "$_fm_full" = 1 ] && cat >/dev/null 2>&1
+        _fm_dir="${CLAUDE_PLUGIN_DATA:-$HOME/.flagman}"
+        _fm_m=("$_fm_dir"/reminded-"$_fm_sid"-*)
+        [ -e "${_fm_m[0]}" ] && rm -f "${_fm_m[@]}" 2>/dev/null
+        exit 0
+        ;;
+esac
+exit 0

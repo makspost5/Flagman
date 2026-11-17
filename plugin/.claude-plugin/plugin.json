@@ -1,0 +1,13 @@
+{
+  "name": "flagman",
+  "version": "0.2.0",
+  "license": "MIT",
+  "description": "A live map of a big task: items with stages and statuses, updated by the fm command and shown in a local web page.",
+  "userConfig": {
+    "tasks_dir": {
+      "type": "string",
+      "title": "Tasks folder",
+      "description": "Where task folders live; empty = found from the current folder"
+    }
+  }
+}
