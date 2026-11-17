@@ -211,8 +211,13 @@ details.item .body { padding: 6px 0 10px; }
       noData: "Нет данных: не удалось прочитать taskgraph.js рядом со страницей. Страница пробует снова.",
       error: function (m, l) { return "Ошибка: " + m + " (строка " + l + ")"; },
       allWait: "Сейчас ни одна сессия не работает — все ждут тебя.",
-      waitYou: function (n, m, list) {
-        return "<b>Ждут тебя: " + n + "</b> в " + m + " сессиях, каждое действие снимает с паузы свою: " + list + ".";
+      // list: "session (items)" for the sessions, loose: chips of the items without a session
+      waitYou: function (n, m, list, loose) {
+        const one = m % 10 === 1 && m % 100 !== 11;
+        const parts = [];
+        if (m) parts.push((m === 1 ? "в 1 сессии: " : "в " + m + (one ? " сессии" : " сессиях") + ", каждое действие снимает с паузы свою: ") + list);
+        if (loose) parts.push("без сессии: " + loose);
+        return "<b>Ждут тебя: " + n + "</b> " + parts.join("; ") + ".";
       },
       inReview: function (list) { return "<b>На ревью у других:</b> " + list + " — от тебя ничего не нужно, ждут ревью или мерджа."; },
       free: function (list) { return "<b>Свободны и без сессии:</b> " + list + " — можно открыть новые сессии."; },
@@ -252,8 +257,11 @@ details.item .body { padding: 6px 0 10px; }
       noData: "No data: could not read taskgraph.js next to this page. The page keeps trying.",
       error: function (m, l) { return "Error: " + m + " (line " + l + ")"; },
       allWait: "No session is working right now — all of them are waiting on you.",
-      waitYou: function (n, m, list) {
-        return "<b>Waiting on you: " + n + "</b> in " + m + " sessions, each action unblocks its own: " + list + ".";
+      waitYou: function (n, m, list, loose) {
+        const parts = [];
+        if (m) parts.push((m === 1 ? "in 1 session: " : "in " + m + " sessions, each action unblocks its own: ") + list);
+        if (loose) parts.push("no session: " + loose);
+        return "<b>Waiting on you: " + n + "</b> " + parts.join("; ") + ".";
       },
       inReview: function (list) { return "<b>In review by others:</b> " + list + " — nothing needed from you, waiting for review or merge."; },
       free: function (list) { return "<b>Free and without a session:</b> " + list + " — you can open new sessions for them."; },
@@ -502,10 +510,13 @@ details.item .body { padding: 6px 0 10px; }
     const hints = [];
     const waitMe = G.items.filter(function (it) { return it.state === "wait-me"; });
     if (waitMe.length) {
-      const bySess = {}; waitMe.forEach(function (it) { const k = it.session || "—"; (bySess[k] = bySess[k] || []).push(it.id); });
+      const bySess = {}, loose = [];
+      waitMe.forEach(function (it) { if (it.session) (bySess[it.session] = bySess[it.session] || []).push(it.id); else loose.push(it.id); });
       if (!counts.doing) hints.push('<span class="no">' + esc(tr.allWait) + "</span>");
+      const chips = function (ids) { return ids.map(function (id) { return chip(id); }).join(""); };
       hints.push(tr.waitYou(waitMe.length, Object.keys(bySess).length,
-        Object.keys(bySess).map(function (k) { return esc(k) + " (" + bySess[k].map(function (id) { return chip(id); }).join("") + ")"; }).join(", ")));
+        Object.keys(bySess).map(function (k) { return esc(k) + " (" + chips(bySess[k]) + ")"; }).join(", "),
+        chips(loose)));
     }
     const inReview = G.items.filter(function (it) { return it.state === "review"; });
     if (inReview.length) hints.push(tr.inReview(inReview.map(function (it) { return chip(it.id); }).join("")));

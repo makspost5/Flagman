@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import tempfile
 import unittest
@@ -379,6 +380,40 @@ class PageTests(unittest.TestCase):
         self.assertIn("notes/readme.md", hrefs)
         for label in ("bad-task-link", "bad-item-link", "data-link", "vbscript:msgbox(5)"):
             self.assertIn(label, dom.text)
+
+    def _wait_hint(self, graph: dict, lang: str) -> str:
+        """The "Waiting on you" sentence of the hints, up to its full stop."""
+        dom = self._open_graph(graph, "?lang=" + lang)
+        self.assertEqual(dom.err_text(), "")
+        # the status bar also has "Waiting on you: 1", glued to the next label without a space
+        found = re.search(r"(Ждут тебя|Waiting on you): \d+ [^.]*\.", dom.text)
+        self.assertIsNotNone(found, dom.text)
+        return found.group(0)
+
+    def test_page_wait_hint_one_item_one_session(self):
+        # make_graph: item 2 of session 02 waits on the user
+        g = make_graph()
+        self.assertEqual(self._wait_hint(g, "ru"), "Ждут тебя: 1 в 1 сессии: 02 (2).")
+        self.assertEqual(self._wait_hint(g, "en"), "Waiting on you: 1 in 1 session: 02 (2).")
+
+    def test_page_wait_hint_several_sessions(self):
+        g = make_graph()
+        g["items"][2]["status"] = "wait-me"  # item 3, session 01
+        g["items"][3]["status"] = "wait-me"  # item 4, session 02
+        self.assertEqual(self._wait_hint(g, "ru"),
+                         "Ждут тебя: 3 в 2 сессиях, каждое действие снимает с паузы свою: 02 (24), 01 (3).")
+        self.assertEqual(self._wait_hint(g, "en"),
+                         "Waiting on you: 3 in 2 sessions, each action unblocks its own: 02 (24), 01 (3).")
+
+    def test_page_wait_hint_items_without_a_session(self):
+        g = make_graph()
+        g["items"][2]["status"] = "wait-me"
+        g["items"][2]["session"] = None
+        self.assertEqual(self._wait_hint(g, "ru"), "Ждут тебя: 2 в 1 сессии: 02 (2); без сессии: 3.")
+        self.assertEqual(self._wait_hint(g, "en"), "Waiting on you: 2 in 1 session: 02 (2); no session: 3.")
+        g["items"][1]["session"] = None  # nobody waiting has a session
+        self.assertEqual(self._wait_hint(g, "ru"), "Ждут тебя: 2 без сессии: 23.")
+        self.assertEqual(self._wait_hint(g, "en"), "Waiting on you: 2 no session: 23.")
 
     def test_page_wait_count_in_tab_title_and_favicon(self):
         # make_graph has one item waiting on the user (2).
