@@ -144,9 +144,11 @@ the test reads: graders as a list under `graders:`, one `pattern:` per line in s
   through `bash`, so the bit does not matter there, but a checkout should still keep it.
 - On Windows the reminder says plain `fm`: the Bash tool runs `bin/fm`, the PowerShell tool
   runs `bin/fm.cmd` (PowerShell cannot run an extensionless file, and `bash` in PowerShell is WSL).
-- `bin/fm.cmd` must keep CRLF line endings; every other file uses LF. `.gitattributes` does
-  this on checkout. When a script writes files, write bytes, not text, or Windows will turn LF
-  into CRLF.
+- `bin/fm.cmd` must keep CRLF line endings; every other file uses LF. `.gitattributes` keeps
+  LF everywhere and marks `*.cmd` as `-text`, so `fm.cmd` is committed with CRLF and installed
+  byte for byte (the plugin directory refuses any other line-ending conversion). Edit it with
+  an editor that keeps CRLF. When a script writes files, write bytes, not text, or Windows
+  will turn LF into CRLF.
 
 ## Pull requests
 
