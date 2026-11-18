@@ -825,3 +825,14 @@ class CmdLauncherTests(CliTestCase):
     def test_cmd_launcher_is_crlf(self):
         data = self.CMD.read_bytes()
         self.assertEqual(data.count(b"\n"), data.count(b"\r\n"), self.CMD.name)
+
+    def test_gitattributes_keep_installed_files_as_validated(self):
+        # The plugin directory rejects line-ending conversion other than eol=lf: an installed
+        # file must match the committed one. fm.cmd is stored with CRLF and marked -text.
+        rules = (helpers.ROOT / ".gitattributes").read_text(encoding="utf-8").splitlines()
+        rules = [r.split() for r in rules if r.strip() and not r.startswith("#")]
+        for pattern, *attrs in rules:
+            converts = any(a in ("text", "crlf") or a.startswith(("text=", "eol=")) for a in attrs)
+            if converts:
+                self.assertIn("eol=lf", attrs, pattern)
+        self.assertIn(["*.cmd", "-text"], rules)

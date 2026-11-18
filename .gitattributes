@@ -1,2 +1,3 @@
 * text=auto eol=lf
-*.cmd text eol=crlf
+# fm.cmd is committed with CRLF and installed byte for byte
+*.cmd -text
